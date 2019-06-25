@@ -12,6 +12,12 @@ from keras.models import Model, Sequential, load_model
 from keras.utils import to_categorical
 from sklearn.metrics import confusion_matrix
 
+try:
+    import googleclouddebugger
+    googleclouddebugger.enable(module='[MODULE]', version='[VERSION]')
+except ImportError:
+    pass
+
 # this is the size of our encoded representations
 ENCODING_DIM = 10
 THRESHOLD = 0.5
