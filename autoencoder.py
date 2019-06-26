@@ -98,4 +98,4 @@ for i in range(n):
     plt.gray()
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False)
-plt.savefig("autoencoder.png")
+plt.savefig(os.path.join("imgs","autoencoder.png"))

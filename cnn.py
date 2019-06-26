@@ -16,7 +16,7 @@ def get_data():
     img = X_train[0].reshape((28, 28))
     # reshape data to fit model
     plt.imshow(X_train[0], cmap="Greys", vmin=0, vmax=255)
-    plt.savefig("example_img.png")
+    plt.savefig(os.path.join("imgs","example-digit.png"))
 
     """for CNN"""
     X_train = X_train.reshape(60000, 28, 28, 1)
