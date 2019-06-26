@@ -15,13 +15,17 @@ from sklearn.metrics import confusion_matrix
 
 # this is the size of our encoded representations
 ENCODING_DIM = 10
-THRESHOLD = 0.5
-# np.set_printoptions(threshold=sys.maxsize)
 
+# decision boundary for classifier
+THRESHOLD = 0.7
+
+#working directory
 CUR_DIR = os.path.curdir
 
 
+
 def get_data():
+    """retrieves data MNIST data set and rebalances dataset, such that train=.7, test=.15 and validation=.15"""
     np.random.seed(42)
     (X_train, y_train), (X_test, y_test) = mnist.load_data()
 
@@ -29,8 +33,9 @@ def get_data():
     test_len = len(X_test)
 
     X_test = X_test.reshape((test_len, 28, 28, 1))
-    # print(X_train.shape, X_test.shape)
-    X = np.concatenate((X_train, X_test))
+
+    # divide X values bei 255.0 since MNIST data set changed such that pixel values are in [0,255]
+    X = np.concatenate((X_train, X_test)) /255.0
     y = np.concatenate((y_train, y_test))
 
     indices = np.arange(X.shape[0])
@@ -38,66 +43,63 @@ def get_data():
     X = X[indices]
     y = y[indices]
 
+    # define boundaries for train,validation and test set at .7 and .85 % of the MNIST data set
     x_len = len(X)
     boundaries = [int(x_len * 0.7), int(x_len*0.85)]
-    # print("boundaries %s" % str(boundaries))
 
     [X_train, X_test, X_validate] = np.split(X, boundaries)
-    # print(X_train.shape, X_test.shape, X_validate.shape)
 
     [y_train, y_test, y_validate] = np.split(y, boundaries)
-    # print(y_train.shape,y_test.shape, y_validate.shape)
 
-    # one-hot encode target column
+    # one-hot encode target columns
     y_train = to_categorical(y_train)
     y_test = to_categorical(y_test)
     y_validate = to_categorical(y_validate)
 
-    return (X_train/255.0, X_test/255.0, X_validate/255.0), (y_train, y_test, y_validate)
+    return (X_train, X_test, X_validate), (y_train, y_test, y_validate)
 
 
-def build_classifier():
+def build_classifier(input_dim=128):
+    """Builds classifier for classification of MNIST encoded representation."""
     classifier = Sequential()
-    # classifier.add(Dense(16, activation="relu"))
-    classifier.add(Dense(10, activation="softmax", input_dim=128,
+    classifier.add(Dense(ENCODING_DIM, activation="softmax", input_dim=input_dim,
                          kernel_initializer="random_normal"))
 
     classifier.compile(optimizer='adam', loss='mean_squared_error',
                        metrics=['accuracy'])
     return classifier
 
-# TODO: test regularizing the model
 
 
 def build_conv_aue():
     INPUT_SHAPE = (28, 28, 1)
     DEFAULT_KERNEL = (3, 3)
-    DEFAULT_STRIDE = (2, 2)
+    DEFAULT_POOL_SIZE = (2, 2)
     # this is our input placeholder
     input_img = Input(shape=INPUT_SHAPE)
     # layer between input and middle layer
     encode = Conv2D(16, DEFAULT_KERNEL, activation="relu",
                     padding="same")(input_img)
-    encode = MaxPooling2D(DEFAULT_STRIDE, padding="same")(encode)
+    encode = MaxPooling2D(DEFAULT_POOL_SIZE, padding="same")(encode)
     encode = Conv2D(8, DEFAULT_KERNEL, activation="relu",
                     padding="same")(encode)
-    encode = MaxPooling2D(DEFAULT_STRIDE, padding="same")(encode)
+    encode = MaxPooling2D(DEFAULT_POOL_SIZE, padding="same")(encode)
     encode = Conv2D(8, DEFAULT_KERNEL, activation="relu",
                     padding="same")(encode)
 
     # "encoded" is the encoded representation of the input, middle layer of the aue
     encoded = MaxPooling2D(
-        DEFAULT_STRIDE, padding="same", name="encoder")(encode)
+        DEFAULT_POOL_SIZE, padding="same", name="encoder")(encode)
 
     # layer between middle and output layer
     decode = Conv2D(8, DEFAULT_KERNEL, activation="relu", padding="same"
                     )(encoded)
-    decode = UpSampling2D(DEFAULT_STRIDE)(decode)
+    decode = UpSampling2D(DEFAULT_POOL_SIZE)(decode)
     decode = Conv2D(8, DEFAULT_KERNEL, activation="relu", padding="same"
                     )(decode)
-    decode = UpSampling2D(DEFAULT_STRIDE)(decode)
+    decode = UpSampling2D(DEFAULT_POOL_SIZE)(decode)
     decode = Conv2D(16, DEFAULT_KERNEL, activation="relu")(decode)
-    decode = UpSampling2D(DEFAULT_STRIDE)(decode)
+    decode = UpSampling2D(DEFAULT_POOL_SIZE)(decode)
     decoded = Conv2D(1, DEFAULT_KERNEL, activation="sigmoid",
                      padding="same")(decode)
 
@@ -105,29 +107,29 @@ def build_conv_aue():
     autoencoder = Model(inputs=input_img, outputs=decoded)
 
     encoder, decoder = get_codec_from_aue(autoencoder)
+ 
     # build (aka "compile") the model
     autoencoder.compile(optimizer="adadelta", loss="binary_crossentropy")
     return autoencoder, encoder, decoder
 
 
-
-def get_codec_from_aue(autoencoder, mid_shape=(4, 4, 8)):
+def get_codec_from_aue(autoencoder, ):
+    encoder_layer = autoencoder.get_layer("encoder")
     # this model maps an input to its encoded representation; Big image to small rep
     encoder = Model(
-        inputs=autoencoder.input, outputs=autoencoder.get_layer("encoder").output)
+        inputs=autoencoder.input, outputs=encoder_layer.output)
 
-    # create a placeholder for an encoded (ENCODING_DIM-dimensional) input^
-    # TODO: remove hard coded shape
-    encoded_input = Input(shape=mid_shape)
-    decoder = autoencoder.layers[-7](encoded_input)
-    decoder = autoencoder.layers[-6](decoder)
-    decoder = autoencoder.layers[-5](decoder)
-    decoder = autoencoder.layers[-4](decoder)
-    decoder = autoencoder.layers[-3](decoder)
-    decoder = autoencoder.layers[-2](decoder)
-    decoder = autoencoder.layers[-1](decoder)
+    # create a placeholder for an encoded (ENCODING_DIM-dimensional) input
+    encoded_input = Input(shape=encoder_layer.output_shape[1:])
 
-    # create the decoder model; encoded(small) rep to big image
+    # getting the middle of the autoencoder
+    start = (len(autoencoder.layers))//2
+    decoder = autoencoder.layers[-start](encoded_input)
+    # stacking the decoder layers
+    for i in range(start-1, 0, -1):
+        decoder = autoencoder.layers[-i](decoder)
+
+    # create the decoder model; "<": encoded(small) representation to big image
     decoder = Model(encoded_input, decoder)
     return encoder, decoder
 
@@ -163,9 +165,6 @@ else:
     autoencoder.save(os.path.join(model_path, "autoencoder.h5"))
     encoder.save(os.path.join(model_path, "encoder.h5"))
     decoder.save(os.path.join(model_path, "decoder.h5"))
-# autoencoder = load_model("model/conv/autoencoder.h5")
-# decoder = load_model("model/conv/decoder.h5")
-# encoder = load_model("model/conv/encoder.h5")
 print("Done")
 
 eval_train = autoencoder.evaluate(X_train, X_train)
@@ -200,10 +199,11 @@ plt.savefig(os.path.join("imgs", "conv-autoencoder.png"))
 #####################################################################
 print("CLASSIFIER")
 #####################################################################
-encoded_imgs_train = encoded_imgs_train.reshape(len(encoded_imgs_train), 128)
+flat = np.prod(encoded_imgs_train.shape[1:], dtype=np.int32)
+encoded_imgs_train = encoded_imgs_train.reshape(len(encoded_imgs_train), flat)
 encoded_imgs_validate = encoded_imgs_validate.reshape(
-    len(encoded_imgs_validate), 128)
-encoded_imgs_test = encoded_imgs_test.reshape(len(encoded_imgs_test), 128)
+    len(encoded_imgs_validate), flat)
+encoded_imgs_test = encoded_imgs_test.reshape(len(encoded_imgs_test), flat)
 
 ckpt_loc = os.path.join(CUR_DIR, "ckpts", "classifier.hdf5")
 if(os.path.isfile(ckpt_loc)):
@@ -234,7 +234,7 @@ def get_cm(input, y, TRESHOLD):
     y_pred = classifier.predict(input)
     y_pred = (y_pred > THRESHOLD)
 
-    y_pred = tf.argmax(y_pred.astype(np.float32), axis=1)
+    y_pred = tf.argmax(y_pred.astype(np.float64), axis=1)
     y = tf.argmax(y, axis=1)
     c = tf.keras.backend.eval(y_pred)
     d = tf.keras.backend.eval(y)
@@ -264,10 +264,10 @@ def recall(cm):
 
 
 cm_train = get_cm(encoded_imgs_train, y_train, THRESHOLD)
-print(cm_train, precision(cm_train),recall(cm_train))
+print(cm_train, precision(cm_train), recall(cm_train), sep="\n")
 
 cm_validate = get_cm(encoded_imgs_validate, y_validate, THRESHOLD)
-print(cm_validate, precision(cm_validate),recall(cm_validate))
+print(cm_validate, precision(cm_validate), recall(cm_validate), sep="\n")
 
 cm_test = get_cm(encoded_imgs_test, y_test, THRESHOLD)
-print(cm_test, precision(cm_test),recall(cm_test))
+print(cm_test, precision(cm_test), recall(cm_test), sep="\n")
