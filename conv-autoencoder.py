@@ -12,43 +12,49 @@ from keras.models import Model, Sequential, load_model
 from keras.utils import to_categorical
 from sklearn.metrics import confusion_matrix
 
-try:
-    import googleclouddebugger
-    googleclouddebugger.enable(module='[MODULE]', version='[VERSION]')
-except ImportError:
-    pass
 
 # this is the size of our encoded representations
 ENCODING_DIM = 10
 THRESHOLD = 0.5
-np.set_printoptions(threshold=sys.maxsize)
+# np.set_printoptions(threshold=sys.maxsize)
 
 CUR_DIR = os.path.curdir
 
 
 def get_data():
     (X_train, y_train), (X_test, y_test) = mnist.load_data()
-    # X = np.concatenate( (X_train, X_test),axis=0)
-    # y = np.concatenate( (y_train, y_test),axis=0)
-    # print(X.shape, y.shape)
 
-    # print(data)
-    # np.random.shuffle(data)
-    # X = data[:,:-2]
-    # y = data[:,-2:]
 
     X_train = X_train.reshape((len(X_train), 28, 28, 1))
     test_len = len(X_test)
+
     X_test = X_test.reshape((test_len, 28, 28, 1))
-    np.random.shuffle(X_test)
-    X_validate = X_test[test_len//2:]
-    X_test = X_test[:test_len//2]
+    print(X_train.shape, X_test.shape)
+    X = np.concatenate((X_train, X_test))
+    y = np.concatenate((y_train, y_test))
+    
+    indices = np.arange(X.shape[0])
+    np.random.shuffle(indices)
+    X = X[indices]
+    y = y[indices]
+
+
+    x_len = len(X)
+    boundaries = [int(x_len * 0.7), int(x_len*0.85)]
+    print("boundaries %s" % str(boundaries))
+
+    [X_train, X_test, X_validate] = np.split(X, boundaries)
+    print(X_train.shape, X_test.shape, X_validate.shape)
+    
+    [y_train, y_test, y_validate] = np.split(y, boundaries)
+    print(y_train.shape,y_test.shape, y_validate.shape)
+
+
 
     # one-hot encode target column
     y_train = to_categorical(y_train)
     y_test = to_categorical(y_test)
-    y_validate = y_test[test_len//2:]
-    y_test = y_test[:test_len//2]
+    y_validate = to_categorical(y_validate)
 
     return (X_train/255.0, X_test/255.0, X_validate/255.0), (y_train, y_test, y_validate)
 
@@ -68,7 +74,6 @@ def build_classifier():
 
 def build_conv_aue():
     INPUT_SHAPE = (28, 28, 1)
-    MID_DIM = 32
     DEFAULT_KERNEL = (3, 3)
     DEFAULT_STRIDE = (2, 2)
     # this is our input placeholder
@@ -82,15 +87,11 @@ def build_conv_aue():
     encode = MaxPooling2D(DEFAULT_STRIDE, padding="same")(encode)
     encode = Conv2D(8, DEFAULT_KERNEL, activation="relu",
                     padding="same")(encode)
+
     # "encoded" is the encoded representation of the input, middle layer of the aue
     encoded = MaxPooling2D(
         DEFAULT_STRIDE, padding="same", name="encoder")(encode)
-    # encode = Flatten()(encode)
-    # # mitte
-    # encoded = Dense(10, name="encoder",  activation="relu")(encode)
 
-    # decode = Dense(4*4*8, activation="relu")(encoded)
-    # decode = Reshape((4, 4, 8))(decode)
     # layer between middle and output layer
     decode = Conv2D(8, DEFAULT_KERNEL, activation="relu", padding="same"
                     )(encoded)
@@ -127,7 +128,8 @@ def get_codec_from_aue(autoencoder, mid_shape=(4, 4, 8)):
     decoder = autoencoder.layers[-3](decoder)
     decoder = autoencoder.layers[-2](decoder)
     decoder = autoencoder.layers[-1](decoder)
-    # create the decoder model; small rep to big image
+
+    # create the decoder model; encoded(small) rep to big image
     decoder = Model(encoded_input, decoder)
     return encoder, decoder
 
@@ -138,7 +140,7 @@ print("Done")
 #####################################################################
 print("AUTOENCODER")
 #####################################################################
-ckpt_loc = os.path.join(CUR_DIR, "ckpts", ".conv-aue.hdf5")
+ckpt_loc = os.path.join(CUR_DIR, "ckpts", "conv-aue.hdf5")
 
 if(os.path.isfile(ckpt_loc)):
     print("Loading Autoencoder from directory %s..." % ckpt_loc)
