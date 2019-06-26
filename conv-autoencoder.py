@@ -29,7 +29,7 @@ def get_data():
     test_len = len(X_test)
 
     X_test = X_test.reshape((test_len, 28, 28, 1))
-    print(X_train.shape, X_test.shape)
+    # print(X_train.shape, X_test.shape)
     X = np.concatenate((X_train, X_test))
     y = np.concatenate((y_train, y_test))
     
@@ -41,13 +41,13 @@ def get_data():
 
     x_len = len(X)
     boundaries = [int(x_len * 0.7), int(x_len*0.85)]
-    print("boundaries %s" % str(boundaries))
+    # print("boundaries %s" % str(boundaries))
 
     [X_train, X_test, X_validate] = np.split(X, boundaries)
-    print(X_train.shape, X_test.shape, X_validate.shape)
+    # print(X_train.shape, X_test.shape, X_validate.shape)
     
     [y_train, y_test, y_validate] = np.split(y, boundaries)
-    print(y_train.shape,y_test.shape, y_validate.shape)
+    # print(y_train.shape,y_test.shape, y_validate.shape)
 
 
 
@@ -197,7 +197,7 @@ for i in range(n):
     plt.gray()
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False)
-plt.savefig("conv-autoencoder.png")
+plt.savefig(os.path.join("imgs","conv-autoencoder.png"))
 
 #####################################################################
 print("CLASSIFIER")
