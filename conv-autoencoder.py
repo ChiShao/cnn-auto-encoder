@@ -22,8 +22,8 @@ CUR_DIR = os.path.curdir
 
 
 def get_data():
+    np.random.seed(42)
     (X_train, y_train), (X_test, y_test) = mnist.load_data()
-
 
     X_train = X_train.reshape((len(X_train), 28, 28, 1))
     test_len = len(X_test)
@@ -32,12 +32,11 @@ def get_data():
     # print(X_train.shape, X_test.shape)
     X = np.concatenate((X_train, X_test))
     y = np.concatenate((y_train, y_test))
-    
+
     indices = np.arange(X.shape[0])
     np.random.shuffle(indices)
     X = X[indices]
     y = y[indices]
-
 
     x_len = len(X)
     boundaries = [int(x_len * 0.7), int(x_len*0.85)]
@@ -45,11 +44,9 @@ def get_data():
 
     [X_train, X_test, X_validate] = np.split(X, boundaries)
     # print(X_train.shape, X_test.shape, X_validate.shape)
-    
+
     [y_train, y_test, y_validate] = np.split(y, boundaries)
     # print(y_train.shape,y_test.shape, y_validate.shape)
-
-
 
     # one-hot encode target column
     y_train = to_categorical(y_train)
@@ -111,6 +108,7 @@ def build_conv_aue():
     # build (aka "compile") the model
     autoencoder.compile(optimizer="adadelta", loss="binary_crossentropy")
     return autoencoder, encoder, decoder
+
 
 
 def get_codec_from_aue(autoencoder, mid_shape=(4, 4, 8)):
@@ -197,7 +195,7 @@ for i in range(n):
     plt.gray()
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False)
-plt.savefig(os.path.join("imgs","conv-autoencoder.png"))
+plt.savefig(os.path.join("imgs", "conv-autoencoder.png"))
 
 #####################################################################
 print("CLASSIFIER")
@@ -245,6 +243,31 @@ def get_cm(input, y, TRESHOLD):
     return cm
 
 
-print(get_cm(encoded_imgs_train, y_train, THRESHOLD))
-print(get_cm(encoded_imgs_validate, y_validate, THRESHOLD))
-print(get_cm(encoded_imgs_test, y_test, THRESHOLD))
+def precision(cm):
+    results = []
+    for i in range(len(cm)):  # rows
+        TP = cm[i][i]
+        fp_tp = np.sum(cm[i])
+        results.append(TP/fp_tp)
+    return results
+
+
+def recall(cm):
+    results = []
+    for i in range(len(cm)):  # rows
+        TP = cm[i][i]
+        tp_fn = 0
+        for j in range(len(cm[i])):
+            tp_fn += cm[j][i]
+        results.append(TP/tp_fn)
+    return results
+
+
+cm_train = get_cm(encoded_imgs_train, y_train, THRESHOLD)
+print(cm_train, precision(cm_train),recall(cm_train))
+
+cm_validate = get_cm(encoded_imgs_validate, y_validate, THRESHOLD)
+print(cm_validate, precision(cm_validate),recall(cm_validate))
+
+cm_test = get_cm(encoded_imgs_test, y_test, THRESHOLD)
+print(cm_test, precision(cm_test),recall(cm_test))
