@@ -151,14 +151,14 @@ else:
     print("Training Autoencoder...")
     autoencoder, encoder, decoder = build_conv_aue()
     earlyStopping = EarlyStopping(
-        monitor='val_loss', patience=10, verbose=1, mode='min', min_delta=0.01)
+        monitor='val_loss', patience=10, verbose=1, mode='min', min_delta=0.0005)
     mcp_save = ModelCheckpoint(ckpt_loc,
                                save_best_only=True, verbose=1, monitor='val_loss', mode='min')
     reduce_lr_loss = ReduceLROnPlateau(
         monitor='val_loss', factor=0.3, patience=3, verbose=1, mode='min')
     autoencoder.fit(X_train, X_train,
-                    epochs=100,
-                    batch_size=100,
+                    epochs=128,
+                    batch_size=128,
                     shuffle=True,
                     validation_data=(X_validate, X_validate), callbacks=[earlyStopping, mcp_save, reduce_lr_loss])
     model_path = os.path.join(CUR_DIR, "model", "conv")
@@ -199,7 +199,7 @@ plt.savefig(os.path.join("imgs", "conv-autoencoder.png"))
 #####################################################################
 print("CLASSIFIER")
 #####################################################################
-flat = np.prod(encoded_imgs_train.shape[1:], dtype=np.int32)
+flat = np.prod(encoded_imgs_train.shape[1:], dtype=np.int64)
 encoded_imgs_train = encoded_imgs_train.reshape(len(encoded_imgs_train), flat)
 encoded_imgs_validate = encoded_imgs_validate.reshape(
     len(encoded_imgs_validate), flat)
@@ -208,19 +208,18 @@ encoded_imgs_test = encoded_imgs_test.reshape(len(encoded_imgs_test), flat)
 ckpt_loc = os.path.join(CUR_DIR, "ckpts", "classifier.hdf5")
 if(os.path.isfile(ckpt_loc)):
     print("Loading classifier from directory %s..." % ckpt_loc)
-
     classifier = load_model(ckpt_loc)
 else:
     print("Training classifier...")
     classifier = build_classifier()
     earlyStopping = EarlyStopping(
-        monitor='val_acc', patience=3, verbose=1, mode='max', min_delta=0.01)
+        monitor='val_acc', patience=5, verbose=1, mode='max',  min_delta=0.0005)
     mcp_save = ModelCheckpoint(ckpt_loc,
                                save_best_only=True, verbose=1, monitor='val_acc', mode='max')
     reduce_lr_loss = ReduceLROnPlateau(
         monitor='val_acc', factor=0.3, patience=3, verbose=1, mode='max')
     classifier.fit(encoded_imgs_train, y_train, validation_data=(
-        encoded_imgs_validate, y_validate), batch_size=10, epochs=10, shuffle=True, callbacks=[earlyStopping, mcp_save, reduce_lr_loss])
+        encoded_imgs_validate, y_validate), batch_size=16, epochs=32, shuffle=True, callbacks=[earlyStopping, mcp_save, reduce_lr_loss])
 print("Done")
 
 eval_train = classifier.evaluate(encoded_imgs_train, y_train)
@@ -230,17 +229,15 @@ print("Evaluation: Train", eval_train, "Validate",
       eval_validate, "Test",  eval_test)
 
 
-def get_cm(input, y, TRESHOLD):
-    y_pred = classifier.predict(input)
-    y_pred = (y_pred > THRESHOLD)
+def get_cm(input, y_true):
+    """Computes confusion matrix."""
+    y_pred = tf.argmax(classifier.predict(input), axis=1)
+    y_true = tf.argmax(y_true, axis=1)
 
-    y_pred = tf.argmax(y_pred.astype(np.float64), axis=1)
-    y = tf.argmax(y, axis=1)
     c = tf.keras.backend.eval(y_pred)
-    d = tf.keras.backend.eval(y)
-    # print(c, d)
-    cm = confusion_matrix(c, d)
-    return cm
+    d = tf.keras.backend.eval(y_true)
+    
+    return confusion_matrix(c, d)
 
 
 def precision(cm):
@@ -249,7 +246,7 @@ def precision(cm):
         TP = cm[i][i]
         fp_tp = np.sum(cm[i])
         results.append(TP/fp_tp)
-    return results
+    return results + [np.mean(results)]
 
 
 def recall(cm):
@@ -260,14 +257,14 @@ def recall(cm):
         for j in range(len(cm[i])):
             tp_fn += cm[j][i]
         results.append(TP/tp_fn)
-    return results
+    return results+ [np.mean(results)]
 
 
-cm_train = get_cm(encoded_imgs_train, y_train, THRESHOLD)
+cm_train = get_cm(encoded_imgs_train, y_train)
 print(cm_train, precision(cm_train), recall(cm_train), sep="\n")
 
-cm_validate = get_cm(encoded_imgs_validate, y_validate, THRESHOLD)
+cm_validate = get_cm(encoded_imgs_validate, y_validate)
 print(cm_validate, precision(cm_validate), recall(cm_validate), sep="\n")
 
-cm_test = get_cm(encoded_imgs_test, y_test, THRESHOLD)
+cm_test = get_cm(encoded_imgs_test, y_test)
 print(cm_test, precision(cm_test), recall(cm_test), sep="\n")
