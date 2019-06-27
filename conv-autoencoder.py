@@ -22,11 +22,11 @@ THRESHOLD = 0.7
 #working directory
 CUR_DIR = os.path.curdir
 
+np.random.seed(42)
 
 
 def get_data():
     """retrieves data MNIST data set and rebalances dataset, such that train=.7, test=.15 and validation=.15"""
-    np.random.seed(42)
     (X_train, y_train), (X_test, y_test) = mnist.load_data()
 
     X_train = X_train.reshape((len(X_train), 28, 28, 1))
