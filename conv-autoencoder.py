@@ -1,4 +1,4 @@
-import os.path
+import os
 import sys
 
 import matplotlib.pyplot as plt
@@ -10,8 +10,8 @@ from keras.layers import (
     Conv2D, Dense, Flatten, Input, MaxPooling2D, Reshape, UpSampling2D)
 from keras.models import Model, Sequential, load_model
 from keras.utils import to_categorical
-from sklearn.metrics import confusion_matrix
 
+from sklearn.metrics import confusion_matrix
 
 # this is the size of our encoded representations
 ENCODING_DIM = 10
@@ -19,13 +19,13 @@ ENCODING_DIM = 10
 # decision boundary for classifier
 THRESHOLD = 0.7
 
-#working directory
+# working directory
 CUR_DIR = os.path.curdir
 
 np.random.seed(42)
 
 
-def get_data():
+def get_data(train_split=.7, test_split=.85):
     """retrieves data MNIST data set and rebalances dataset, such that train=.7, test=.15 and validation=.15"""
     (X_train, y_train), (X_test, y_test) = mnist.load_data()
 
@@ -35,7 +35,7 @@ def get_data():
     X_test = X_test.reshape((test_len, 28, 28, 1))
 
     # divide X values bei 255.0 since MNIST data set changed such that pixel values are in [0,255]
-    X = np.concatenate((X_train, X_test)) /255.0
+    X = np.concatenate((X_train, X_test)) / 255.0
     y = np.concatenate((y_train, y_test))
 
     indices = np.arange(X.shape[0])
@@ -51,6 +51,13 @@ def get_data():
 
     [y_train, y_test, y_validate] = np.split(y, boundaries)
 
+    # non-anomalies
+    zero_indices = np.where(y_train == 0)
+    zeros_train = X_train[zero_indices]
+    # anomalies
+    zero_indices = np.where(y_train == 8)
+    eights_train = X_train[zero_indices]
+
     # one-hot encode target columns
     y_train = to_categorical(y_train)
     y_test = to_categorical(y_test)
@@ -59,16 +66,17 @@ def get_data():
     return (X_train, X_test, X_validate), (y_train, y_test, y_validate)
 
 
-def build_classifier(input_dim=128):
+def build_classifier(input_dim):
     """Builds classifier for classification of MNIST encoded representation."""
     classifier = Sequential()
-    classifier.add(Dense(ENCODING_DIM, activation="softmax", input_dim=input_dim,
+    classifier.add(Dense(32, activation="relu", input_dim=input_dim,
+                         kernel_initializer="random_normal"))
+    classifier.add(Dense(ENCODING_DIM, activation="softmax",
                          kernel_initializer="random_normal"))
 
     classifier.compile(optimizer='adam', loss='mean_squared_error',
                        metrics=['accuracy'])
     return classifier
-
 
 
 def build_conv_aue():
@@ -86,14 +94,20 @@ def build_conv_aue():
     encode = MaxPooling2D(DEFAULT_POOL_SIZE, padding="same")(encode)
     encode = Conv2D(8, DEFAULT_KERNEL, activation="relu",
                     padding="same")(encode)
+    encode = MaxPooling2D(DEFAULT_POOL_SIZE, padding="same")(encode)
+    encode = Conv2D(4, DEFAULT_KERNEL, activation="relu",
+                    padding="same")(encode)
 
     # "encoded" is the encoded representation of the input, middle layer of the aue
     encoded = MaxPooling2D(
         DEFAULT_POOL_SIZE, padding="same", name="encoder")(encode)
 
     # layer between middle and output layer
-    decode = Conv2D(8, DEFAULT_KERNEL, activation="relu", padding="same"
+    decode = Conv2D(4, DEFAULT_KERNEL, activation="relu", padding="same"
                     )(encoded)
+    decode = UpSampling2D(DEFAULT_POOL_SIZE)(decode)
+    decode = Conv2D(8, DEFAULT_KERNEL, activation="relu", padding="same"
+                    )(decode)
     decode = UpSampling2D(DEFAULT_POOL_SIZE)(decode)
     decode = Conv2D(8, DEFAULT_KERNEL, activation="relu", padding="same"
                     )(decode)
@@ -107,13 +121,13 @@ def build_conv_aue():
     autoencoder = Model(inputs=input_img, outputs=decoded)
 
     encoder, decoder = get_codec_from_aue(autoencoder)
- 
+
     # build (aka "compile") the model
     autoencoder.compile(optimizer="adadelta", loss="binary_crossentropy")
     return autoencoder, encoder, decoder
 
 
-def get_codec_from_aue(autoencoder, ):
+def get_codec_from_aue(autoencoder):
     encoder_layer = autoencoder.get_layer("encoder")
     # this model maps an input to its encoded representation; Big image to small rep
     encoder = Model(
@@ -165,6 +179,7 @@ else:
     autoencoder.save(os.path.join(model_path, "autoencoder.h5"))
     encoder.save(os.path.join(model_path, "encoder.h5"))
     decoder.save(os.path.join(model_path, "decoder.h5"))
+print(autoencoder.summary())
 print("Done")
 
 eval_train = autoencoder.evaluate(X_train, X_train)
@@ -211,7 +226,7 @@ if(os.path.isfile(ckpt_loc)):
     classifier = load_model(ckpt_loc)
 else:
     print("Training classifier...")
-    classifier = build_classifier()
+    classifier = build_classifier(input_dim=flat)
     earlyStopping = EarlyStopping(
         monitor='val_acc', patience=5, verbose=1, mode='max',  min_delta=0.0005)
     mcp_save = ModelCheckpoint(ckpt_loc,
@@ -236,7 +251,7 @@ def get_cm(input, y_true):
 
     c = tf.keras.backend.eval(y_pred)
     d = tf.keras.backend.eval(y_true)
-    
+
     return confusion_matrix(c, d)
 
 
@@ -257,7 +272,7 @@ def recall(cm):
         for j in range(len(cm[i])):
             tp_fn += cm[j][i]
         results.append(TP/tp_fn)
-    return results+ [np.mean(results)]
+    return results + [np.mean(results)]
 
 
 cm_train = get_cm(encoded_imgs_train, y_train)
