@@ -17,6 +17,13 @@
             "request": "launch",
             "program": "${workspaceFolder}/conv-autoencoder.py",
             "console": "integratedTerminal"
+        }   ,
+             {
+            "name": "Python: gauss",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/gaussian-distribution.py",
+            "console": "integratedTerminal"
         }
     ]
 }
