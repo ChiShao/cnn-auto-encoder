@@ -1,1 +1,0 @@
-Start-job  {gcloud compute --project "flash-span-239815" ssh --ssh-key-file ~/.ssh/gcp --zone "us-east1-c" "tensorflow-20190516-140858"}
