@@ -1,5 +1,5 @@
 {
-    "python.pythonPath": "~\\.conda\\envs\\tf_env\\python.exe",
+    "python.pythonPath": "~/.conda/envs/tf-env/python.exe",
     "python.venvPath": "~/.conda/envs/tf_env",
     "terminal.integrated.shell.windows": "cmd.exe"
 }
