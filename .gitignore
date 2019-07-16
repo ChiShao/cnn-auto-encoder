@@ -1,4 +1,8 @@
 test.py 
 
 data/
+imgs/
+logs/
+*ipynb_checkpoints
 *.sh
+model/
