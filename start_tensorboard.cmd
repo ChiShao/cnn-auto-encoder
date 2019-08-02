@@ -1,0 +1,1 @@
+cmd /c "C:\ProgramData\Anaconda3\Scripts\activate tf-env & tensorboard --logdir logs"
