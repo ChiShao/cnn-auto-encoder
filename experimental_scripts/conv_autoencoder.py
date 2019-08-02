@@ -8,7 +8,7 @@ from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from keras.datasets import mnist
 from keras.layers import (
     Conv2D, Dense, Flatten, Input, MaxPooling2D, Reshape, UpSampling2D)
-from keras.models import Model, Sequential, load_model
+from keras.models import Model, Sequential, load
 from keras.utils import to_categorical
 
 from sklearn.metrics import confusion_matrix
@@ -158,7 +158,7 @@ ckpt_loc = os.path.join(CUR_DIR, "ckpts", "conv-aue.hdf5")
 
 if(os.path.isfile(ckpt_loc)):
     print("Loading Autoencoder from directory %s..." % ckpt_loc)
-    autoencoder = load_model(ckpt_loc)
+    autoencoder = load(ckpt_loc)
     encoder, decoder = get_codec_from_aue(autoencoder)
 
 else:
@@ -223,7 +223,7 @@ encoded_imgs_test = encoded_imgs_test.reshape(len(encoded_imgs_test), flat)
 ckpt_loc = os.path.join(CUR_DIR, "ckpts", "classifier.hdf5")
 if(os.path.isfile(ckpt_loc)):
     print("Loading classifier from directory %s..." % ckpt_loc)
-    classifier = load_model(ckpt_loc)
+    classifier = load(ckpt_loc)
 else:
     print("Training classifier...")
     classifier = build_classifier(input_dim=flat)

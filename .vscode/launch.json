@@ -5,32 +5,10 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Python: Current File",
+      "name": "Python: Module",
       "type": "python",
       "request": "launch",
-      "program": "${file}",
-      "console": "integratedTerminal"
-    },
-    {
-      "name": "Python: AUE",
-      "type": "python",
-      "request": "launch",
-      "program": "${workspaceFolder}/autoencoder.py",
-      "console": "integratedTerminal"
-    },
-    {
-      "name": "Python: ConvAUE",
-      "type": "python",
-      "request": "launch",
-      "program": "${workspaceFolder}/conv-autoencoder.py",
-      "console": "integratedTerminal"
-    },
-    {
-      "name": "Python: gauss",
-      "type": "python",
-      "request": "launch",
-      "program": "${workspaceFolder}/gaussian-distribution.py",
-      "console": "integratedTerminal"
+      "module": "trainer.task"
     }
   ]
 }

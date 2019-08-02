@@ -46,7 +46,7 @@ def get_cnn():
 X_train, X_test, y_train, y_test = get_data()
 filepath = "model/cnn.h5"
 if os.path.isfile(filepath):
-    model = keras.models.load_model(filepath)
+    model = keras.models.load(filepath)
 else:
     model = get_cnn()
 

@@ -340,7 +340,8 @@ def train(train_generator, validation_generator,  train_args, log_dir="logs", ck
     ae.fit_generator(
         generator=train_generator,  # needs to produce data infinitely
         epochs=train_args.epochs,
-        steps_per_epoch=len(train_generator) * batch_size,  # every element once on average
+        # every element once on average
+        steps_per_epoch=len(train_generator) * batch_size,
         shuffle=True,
         validation_data=validation_generator,
         validation_steps=len(validation_generator)*batch_size,
