@@ -1,1 +1,1 @@
-cmd /c "C:\ProgramData\Anaconda3\Scripts\activate tf-env &jupyter notebook"
+cmd /c "C:\Users\danie\Anaconda3\Scripts\activate tf-env & jupyter notebook"
