@@ -24,24 +24,7 @@ tf.set_random_seed(42)
 
 # set CONSTANTS
 AUTOTUNE = tf.data.experimental.AUTOTUNE
-
-ANOMALY_STR = "anomaly"
-NORMAL_STR = "normal"
-USE_CASE = "cable"
-
-# define paths for reading data, saving imgs, ckpts and logs
-img_dir = os.path.join("imgs", USE_CASE)
-if not os.path.isdir(img_dir):
-    os.mkdir(img_dir)
-
-cpkt_dir = os.path.join("ckpts", USE_CASE)
-if not os.path.isdir(cpkt_dir):
-    os.mkdir(cpkt_dir)
-data_path = os.path.join(os.getcwd(), "data", "mvtec_anomaly_detection")
-
-base_log_dir = os.path.join("logs", USE_CASE)
-if not os.path.isdir(base_log_dir):
-    os.mkdir(base_log_dir)
+USE_CASE = "None"
 
 
 def read_image_file_names(dir_path):
@@ -50,11 +33,11 @@ def read_image_file_names(dir_path):
     return [os.path.join(path_to_dir, p) for p in os.listdir(dir_path)]
 
 
-def get_path_to_data(mode):
+def get_path_to_data(data_path, mode):
     return os.path.join(data_path, USE_CASE, mode)
 
 
-def load_data():
+def load_data(data_path):
     normal_path = os.path.join(data_path, USE_CASE, "train", "good")
     normal_train_data = read_image_file_names(normal_path)
 
@@ -76,7 +59,7 @@ def train_img_generator(file_paths, batch_size, input_only=False):
     Still used for evaluation purposes."""
 
     while True:
-        inds = (np.random.randint(0, len(file_paths), batch_size))
+        inds = (np.random.randint(0, len(file_paths), öbatch_size))
         imgs = np.array([])
         for i in inds:
             fp = file_paths[i]
@@ -231,7 +214,7 @@ def build_conv_ae(filters, input_shape=(256, 256, 3)):
     return autoencoder, autoencoder_single, encoder, decoder
 
 
-def preproc_data(input_shape, batch_size):
+def preproc_data(input_shape, batch_size, data_path):
     print("Preprocessing data to shape:", input_shape)
     train_datagen = ImageDataGenerator(
         rescale=1./255,
@@ -241,7 +224,7 @@ def preproc_data(input_shape, batch_size):
         horizontal_flip=True
     )
     train_generator = train_datagen.flow_from_directory(
-        get_path_to_data("train"),
+        get_path_to_data(data_path, "train"),
         target_size=input_shape[:2],
         batch_size=batch_size,
         class_mode='input',
@@ -249,48 +232,14 @@ def preproc_data(input_shape, batch_size):
     )
 
     validation_generator = train_datagen.flow_from_directory(
-        get_path_to_data("train"),
+        get_path_to_data(data_path, "train"),
         target_size=input_shape[:2],
         batch_size=batch_size,
         class_mode='input',
         subset="validation"
     )
     test_generator = ImageDataGenerator(rescale=1./255.0).flow_from_directory(
-        get_path_to_data("test"),
-        target_size=input_shape[:2],
-        batch_size=batch_size,
-        class_mode='input',
-        classes=["good"])
-
-    return train_generator, validation_generator, test_generator
-
-
-def preproc_data(input_shape, batch_size):
-    print("Preprocessing data to shape:", input_shape)
-    train_datagen = ImageDataGenerator(
-        rescale=1./255,
-        validation_split=.2,
-        rotation_range=45,
-        brightness_range=(0.5, 1),
-        horizontal_flip=True
-    )
-    train_generator = train_datagen.flow_from_directory(
-        get_path_to_data("train"),
-        target_size=input_shape[:2],
-        batch_size=batch_size,
-        class_mode='input',
-        subset="training"
-    )
-
-    validation_generator = train_datagen.flow_from_directory(
-        get_path_to_data("train"),
-        target_size=input_shape[:2],
-        batch_size=batch_size,
-        class_mode='input',
-        subset="validation"
-    )
-    test_generator = ImageDataGenerator(rescale=1./255.0).flow_from_directory(
-        get_path_to_data("test"),
+        get_path_to_data(data_path, "test"),
         target_size=input_shape[:2],
         batch_size=batch_size,
         class_mode='input',
@@ -303,12 +252,13 @@ def preproc_data(input_shape, batch_size):
 def train(train_generator, validation_generator,  train_args, log_dir="logs", ckpt_dir="ckpts", input_shape=(256, 256, 3)):
     print("Writing logs to %s" % log_dir)
     print("Training Autoencoder for %s feature extraction..." % USE_CASE)
-    d = train_args.latent_space
+    d = train_args.ldim
     batch_size = train_args.batch_size
-    #filters = [16, 16, 16, 32, 64, 64, 32, 32, d]
+    filters = train_args.filters + [d]  # [16, 16, 16, 32, 64, 64, 32, 32, d]
 
     ae, ae_single, encoder, decoder = build_conv_ae(
-        input_shape=input_shape, filters=train_args.filters)
+        input_shape=input_shape, filters=filters)
+
     # define callbacks for logging and optimized training and ckpt saving
 
     earlyStopping = EarlyStopping(
@@ -362,12 +312,28 @@ def load(ckpt_dir):
 
 
 def main(args):
-    X_normal_train, X_normal_test, X_anomaly_test = load_data()
+    global USE_CASE
+    USE_CASE = args.use_case
+    # define paths for reading data, saving imgs, ckpts and logs
+    img_dir = os.path.join(args.imgdir, USE_CASE)
+    if not os.path.isdir(img_dir):
+        os.mkdir(img_dir)
+
+    ckpt_dir = os.path.join(args.ckptdir, USE_CASE)
+    if not os.path.isdir(ckpt_dir):
+        os.mkdir(ckpt_dir)
+    data_path = os.path.join(args.datadir)
+
+    base_log_dir = os.path.join(args.logdir, USE_CASE)
+    if not os.path.isdir(base_log_dir):
+        os.mkdir(base_log_dir)
+
+    X_normal_train, X_normal_test, X_anomaly_test = load_data(data_path)
     input_shape = (256, 256, 3)
     batch_size = args.batch_size  # 10
 
     train_generator, validation_generator, test_generator = preproc_data(
-        input_shape, batch_size)
+        input_shape, batch_size, data_path)
 
     ckpt_path = os.path.join(ckpt_dir, "cae%.0f.hdf5" % time.time())
     log_dir = os.path.join(base_log_dir, str(len(os.listdir(base_log_dir))))
@@ -377,9 +343,6 @@ def main(args):
     # if False and os.path.isfile(ckpt_dir):
     if os.path.isfile(ckpt_path):
         ae, encoder, decoder = train(
-            train_generator, validation_generator, args)
+            train_generator, validation_generator, args, log_dir=log_dir, ckpt_dir=ckpt_path)
     else:
         ae, encoder, decoder = load(ckpt_path)
-
-
-# main()
