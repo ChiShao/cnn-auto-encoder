@@ -31,7 +31,6 @@ def load_data_paths():
     anomaly_test_data = []
     for p in os.listdir(test_path):
         if p != "good":
-            gen = read_image_file_names(os.path.join(test_path, p))
             anomaly_test_data += read_image_file_names(
                 os.path.join(test_path, p))
     return normal_train_data, normal_test_data, normal_test_data, anomaly_test_data
