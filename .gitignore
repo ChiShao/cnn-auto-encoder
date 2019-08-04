@@ -10,3 +10,5 @@ model/
 
 .vscode
 .history
+
+*pyc*
