@@ -1,0 +1,9 @@
+[submodule "trainer/keras-preprocessing"]
+	path = trainer/keras-preprocessing
+	url = git@github.com:daniel-scholz/keras-preprocessing.git
+[submodule "trainer/my-keras"]
+	path = trainer/my-keras
+	url = git@github.com:keras-team/keras.git
+[submodule "trainer/my-keras-preprocessing"]
+	path = trainer/my-keras-preprocessing
+	url = git@github.com:keras-team/keras-preprocessing.git
