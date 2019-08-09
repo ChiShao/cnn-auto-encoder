@@ -1,3 +1,4 @@
+import os
 import warnings
 
 import numpy as np
@@ -5,39 +6,9 @@ from keras.callbacks import Callback
 from keras.utils.multi_gpu_utils import multi_gpu_model
 from tensorflow.python.client import device_lib
 
-
-def get_available_gpus():
-    local_device_protos = device_lib.list_local_devices()
-    return [x.name for x in local_device_protos if x.device_type == 'GPU']
-
-
 class ModelCkptMultiGPU(Callback):
-    """Save the model after every epoch.
-    `filepath` can contain named formatting options,
-    which will be filled with the values of `epoch` and
-    keys in `logs` (passed in `on_epoch_end`).
-    For example: if `filepath` is `weights.{epoch:02d}-{val_loss:.2f}.hdf5`,
-    then the model checkpoints will be saved with the epoch number and
-    the validation loss in the filename.
-    # Arguments
-        filepath: string, path to save the model file.
-        monitor: quantity to monitor.
-        verbose: verbosity mode, 0 or 1.
-        save_best_only: if `save_best_only=True`,
-            the latest best model according to
-            the quantity monitored will not be overwritten.
-        save_weights_only: if True, then only the model's weights will be
-            saved (`model.save_weights(filepath)`), else the full model
-            is saved (`model.save(filepath)`).
-        mode: one of {auto, min, max}.
-            If `save_best_only=True`, the decision
-            to overwrite the current save file is made
-            based on either the maximization or the
-            minimization of the monitored quantity. For `val_acc`,
-            this should be `max`, for `val_loss` this should
-            be `min`, etc. In `auto` mode, the direction is
-            automatically inferred from the name of the monitored quantity.
-        period: Interval (number of epochs) between checkpoints.
+    """Taken from and modified:
+    https://github.com/keras-team/keras/blob/tf-keras/keras/callbacks.py
     """
 
     def __init__(self, filepath, model, monitor='val_loss', verbose=0,
@@ -93,8 +64,7 @@ class ModelCkptMultiGPU(Callback):
                                      current, filepath))
                         self.best = current
                         if self.save_weights_only:
-                            self.model_to_save.save_weights(
-                                filepath, overwrite=True)
+                            self.model_to_save.save_weights(filepath, overwrite=True)
                         else:
                             self.model_to_save.save(filepath, overwrite=True)
                     else:
@@ -109,3 +79,8 @@ class ModelCkptMultiGPU(Callback):
                     self.model_to_save.save_weights(filepath, overwrite=True)
                 else:
                     self.model_to_save.save(filepath, overwrite=True)
+
+
+def get_available_gpus():
+    local_device_protos = device_lib.list_local_devices()
+    return [x.name for x in local_device_protos if x.device_type == 'GPU']
