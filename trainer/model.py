@@ -14,7 +14,7 @@ from keras.models import Model, load_model
 from keras.preprocessing.image import ImageDataGenerator
 from keras.utils.multi_gpu_utils import multi_gpu_model
 from matplotlib.colors import hsv_to_rgb, rgb_to_hsv
-from PIL import Image
+from PIL import Image, ImageEnhance
 # from tensorflow.keras.preprocessing.image import ImageDataGenerator
 # from tensorflow.keras.utils.multi_gpu_utils import multi_gpu_model
 from sklearn import svm
@@ -52,26 +52,33 @@ def load_data(data_path):
     normal_path = os.path.join(data_path, USE_CASE, "train", "good")
     normal_file_names = read_image_file_names(normal_path)
     random.shuffle(normal_file_names)
+
     train_validation_split = (len(normal_file_names) // 10) * 8  # equals .85
     train_file_names, validation_file_names = normal_file_names[
         :train_validation_split], normal_file_names[train_validation_split:]
 
     test_path = os.path.join(data_path, USE_CASE, "test")
+
     normal_test_file_names = read_image_file_names(
         os.path.join(test_path, "good"))
-    anomaly_test_file_names = []
+
+    anomaly_test_file_names = anomaly_train_file_names = []
     # iterate of test list dir because anomalies are named dynamically
-    for p in filter(lambda x: x != "good", file_io.list_directory(test_path)):
-        anomaly_test_file_names += read_image_file_names(
-            os.path.join(test_path, p))
-    
-    print("Splitting data:\n%4d Train Samples\n%4d Validation Samples\n%4d Normal Test Samples\n%4d Anomaly Test Samples" % (
-        len(train_file_names), len(validation_file_names), len(normal_test_file_names), len(anomaly_test_file_names)))
+    for i, p in enumerate(filter(lambda x: x != "good", file_io.list_directory(test_path))):
+        if i == 0:
+            anomaly_test_file_names += read_image_file_names(
+                os.path.join(test_path, p))
+        else:
+            anomaly_train_file_names += read_image_file_names(
+                os.path.join(test_path, p))
 
-    return train_file_names, validation_file_names, normal_test_file_names,  anomaly_test_file_names
+    print("Splitting data:\n%4d Normal Train Samples\n%4d Normal Validation Samples\n%4d Normal Test Samples\n%4d Anomaly Train Samples\n%4d Anomaly Test Samples" % (
+        len(train_file_names), len(validation_file_names), len(normal_test_file_names), len(anomaly_train_file_names), len(anomaly_test_file_names)))
+
+    return train_file_names, validation_file_names, normal_test_file_names, anomaly_train_file_names, anomaly_test_file_names
 
 
-def train_img_generator(file_paths, batch_size, target_size, input_only=False):
+def train_img_generator(file_paths, batch_size, target_size, preproc=True, input_only=False):
     # yields batch_size-d arrays of images indefinetly
     # order of images is random.
     # ONLY FOR TRAIN AND EVALUATE PURPOSES SUITABLE
@@ -87,9 +94,11 @@ def train_img_generator(file_paths, batch_size, target_size, input_only=False):
             if file_io.file_exists(fp):
                 img = filepath_to_image(fp)
                 img = img.resize(target_size[:-1], Image.BICUBIC)  # BGR -> RGB
+                if preproc:
+                    np_img = preproc_img(img, flip_top_bottom=False, hsv=None)
+                else:
+                    np_img = np.array(img) / 255
 
-                np_img = preproc_img(img)
-                # np_img = np.array(img)/255
                 imgs = np.concatenate(
                     (imgs, np.array([np_img]))) if imgs.size > 0 else np.array([np_img])
         if not input_only:
@@ -105,29 +114,46 @@ def filepath_to_image(fp):
 
 
 def rand(a=0, b=1):
+    """:returns random value between a and b"""
     return np.random.rand()*(b-a) + a
 
 
-def preproc_img(image, sat=1.5, hue=.1, val=1.5):
+def preproc_img(image, flip_top_bottom=True, flip_left_right=True, brightness=True, contrast=True, hsv=(.1, 1.5, 1.5)):
     """https://github.com/qqwweee/keras-yolo3/blob/master/yolo3/utils.py"""
     # flip image or not
-    flip = rand() < .5
-    if flip:
+    if flip_left_right and rand() < .5:
         image = image.transpose(Image.FLIP_LEFT_RIGHT)
+    if flip_top_bottom and rand() < .5:
+        image = image.transpose(Image.FLIP_TOP_BOTTOM)
 
-    # distort image
-    hue = rand(-hue, hue)
-    sat = rand(1, sat) if rand() < .5 else 1/rand(1, sat)
-    val = rand(1, val) if rand() < .5 else 1/rand(1, val)
-    x = rgb_to_hsv(np.array(image)/255.)
-    x[..., 0] += hue
-    x[..., 0][x[..., 0] > 1] -= 1
-    x[..., 0][x[..., 0] < 0] += 1
-    x[..., 1] *= sat
-    x[..., 2] *= val
-    x[x > 1] = 1
-    x[x < 0] = 0
-    image = hsv_to_rgb(x)
+    # image brighDtness enhancer
+    if brightness:
+        brightness = ImageEnhance.Brightness(image)
+        image = brightness.enhance(rand(.5, 1.5))
+
+    # increase or decrease contrast
+    if contrast:
+        contrast = ImageEnhance.Contrast(image)
+        image = contrast.enhance(rand(.5, 1.5))
+
+    image = np.array(image) / 255.
+
+    if hsv != None:
+        hue, sat, val = hsv
+        # distort image
+        hue = rand(-hue, hue)
+        sat = rand(1, sat) if rand() < .5 else 1/rand(1, sat)
+        val = rand(1, val) if rand() < .5 else 1 / rand(1, val)
+
+        x = rgb_to_hsv(image)
+        x[..., 0] += hue
+        x[..., 0][x[..., 0] > 1] -= 1
+        x[..., 0][x[..., 0] < 0] += 1
+        x[..., 1] *= sat
+        x[..., 2] *= val
+        x[x > 1] = 1
+        x[x < 0] = 0
+        image = hsv_to_rgb(x)
     return image  # numpy array, 0 to 1
 
 
@@ -167,7 +193,8 @@ def split_ae(autoencoder):
 
 
 def build_conv_ae(filters, input_shape=(256, 256, 3)):
-    n = 9
+    n = 10
+    print(filters)
     if len(filters) != n:
         raise ValueError("%d Filters must be given. Sorry." % n)
     # this is our input placeholder
@@ -206,16 +233,24 @@ def build_conv_ae(filters, input_shape=(256, 256, 3)):
         filters[i], (3, 3), strides=(1, 1), activation="relu", padding="same"
     )(encode)
     i += 1
+    encode = Conv2D(
+        filters[i], (4, 4), strides=(2, 2), activation="relu", padding="same"
+    )(encode)
+    i += 1
     # "encoded" is the encoded representation of the input, middle layer of the aue
     encoded = Conv2D(
-        filters[i], (8, 8), strides=(1, 1), activation="softmax", name="encoder"
+        filters[i], (4, 4), strides=(1, 1), activation="relu", name="encoder"
     )(encode)
 
     i -= 1
     # layer between middle and output layer
-    decode = Conv2DTranspose(filters[i], (8, 8), strides=(1, 1), activation="relu")(
+    decode = Conv2DTranspose(filters[i], (4, 4), strides=(1, 1), activation="relu")(
         encoded
     )
+    i -= 1
+    decode = Conv2DTranspose(
+        filters[i], (4, 4), strides=(2, 2), activation="relu", padding="same"
+    )(decode)
     i -= 1
     decode = Conv2DTranspose(
         filters[i], (3, 3), strides=(1, 1), activation="relu", padding="same"
@@ -301,13 +336,12 @@ def preproc_data(input_shape, batch_size, data_path):
     return train_generator, validation_generator, test_generator
 
 
-# latent_space_d=128, batch_size=8, ):
-def train(train_file_names, validation_file_names, args,  target_size=(256, 256, 3)):
+def train(train_file_names, validation_file_names, anomaly_train_file_names, args,  target_size=(256, 256, 3)):
     print("Writing logs to %s" % args.logdir)
     train_generator = train_img_generator(
         train_file_names, args.batch_size, target_size)
     validation_generator = train_img_generator(
-        validation_file_names, args.batch_size, target_size)
+        validation_file_names, args.batch_size, target_size, preproc=False)
 
     print("Training Autoencoder for %s feature extraction..." % USE_CASE)
     d = args.ldim
@@ -320,7 +354,7 @@ def train(train_file_names, validation_file_names, args,  target_size=(256, 256,
     # define callbacks for logging and optimized training and ckpt saving
 
     earlyStopping = EarlyStopping(
-        monitor="val_loss", patience=15, verbose=1, mode="min", min_delta=(1/10**5)
+        monitor="val_loss", patience=20, verbose=1, mode="min", min_delta=(1/10**5)
     )
     # saves model which was trained on a single cpu since saving the other model threw some kind of error
     checkpoint_format = os.path.join(
@@ -330,7 +364,7 @@ def train(train_file_names, validation_file_names, args,  target_size=(256, 256,
         checkpoint_format, save_best_only=True, verbose=1, monitor="val_loss", mode="min"
     )
     reduce_lr_loss = ReduceLROnPlateau(
-        monitor="val_loss", factor=0.2, patience=3, verbose=1, mode="min"
+        monitor="val_loss", factor=0.2, patience=7, verbose=1, mode="min"
     )
 
     tb = TensorBoard(
@@ -357,11 +391,11 @@ def train(train_file_names, validation_file_names, args,  target_size=(256, 256,
         epochs=args.epochs,
         # every element once on average
         steps_per_epoch=train_length//batch_size,
-        shuffle=True,
         validation_data=validation_generator,
         validation_steps=val_length//batch_size,
         callbacks=[mcp_save, earlyStopping, reduce_lr_loss, tb]
     )
+
     return ae, encoder, decoder
 
 
@@ -400,13 +434,13 @@ def evaluate(model, X_normal_train, X_normal_test, X_anomaly_test, img_dir, targ
     batch_size = 8
 
     eval_test = model.evaluate_generator(
-        train_img_generator(X_normal_test, batch_size, target_size), steps=len(X_normal_test)//batch_size)
+        train_img_generator(X_normal_test, batch_size, target_size, preproc=False), steps=len(X_normal_test)//batch_size)
     # print("Feature extractor train loss: %f" % eval_train)
 
     print("Feature extractor  test loss: %f" % eval_test)
 
     decoded_samples_normal = predict_from_generator(
-        model, img_generator(X_normal_train, 8, target_size))
+        model, img_generator(X_normal_test, 8, target_size))
 
     plot_samples(
         img_generator(X_normal_test, 8, target_size),
@@ -461,6 +495,12 @@ def get_metrics(TP, TN, FP, FN):
         F_2 = 5 * (precision * recall) / (4*precision + recall)
     except ZeroDivisionError:
         F_2 = 0
+
+    try:
+        # between -1 and 1
+        MCC = (TP*TN - FP*FN)/(np.sqrt((TP+FP)*(TP+FN)*(TN+FP)*(TN+FN)))
+    except ZeroDivisionError:
+        MCC = 0
     current_metrics = {"precision": precision,
                        "accuracy": accuracy,
                        "recall": recall,
@@ -469,7 +509,8 @@ def get_metrics(TP, TN, FP, FN):
                        "TPR": TPR,
                        "TNR": TNR,
                        "FNR": FNR,
-                       "FPR": FPR
+                       "FPR": FPR,
+                       "MCC": MCC
                        }
     return current_metrics
 
@@ -510,18 +551,18 @@ def ad_loss(model, X_normal, X_anomaly, img_dir, target_size):
     # loss distribution over the normal dataset
     fig = plt.figure()
 
-    plot_hist(normal_losses, relative=True, color="g", bins=bins)
+    label = "Distribution of normal loss values"
+    plot_hist(normal_losses, relative=True,
+              color="g", bins=bins, label=label)
 
+    label = "Distribution of normal loss values"
     # loss distribution over the anomaly dataset
-    plot_hist(anomaly_losses, relative=True, color="r", bins=bins)
+    plot_hist(anomaly_losses, relative=True,
+              color="r", bins=bins, label=label)
 
     savefig(fig, os.path.join(img_dir, "loss-dist.png"))
 
     plt.clf()
-    # TODO: add legends
-
-    # x:= "false detected anomalies in %"
-    # y:= "correct detected normal data points in %"
 
     samples_normal = np.array(
         list(img_generator(X_normal, len(X_normal), target_size)))
@@ -531,7 +572,7 @@ def ad_loss(model, X_normal, X_anomaly, img_dir, target_size):
     sorted_losses = np.sort(normal_losses)
     metrics = []
     best_metrics = {}
-    best_m = 0
+    best_m = -1
 
     step_size = 1.0 / len(normal_losses)
     steps = np.arange(0, 1 + step_size, step_size)
@@ -553,10 +594,11 @@ def ad_loss(model, X_normal, X_anomaly, img_dir, target_size):
         metrics.append(current_metrics)
 
         # less or equal since we want the biggest TP_rate (i)
-        if current_metrics["F2_score"] >= best_m:
-            best_m = current_metrics["F2_score"]
+        if current_metrics["MCC"] >= best_m:
+            best_m = current_metrics["MCC"]
             best_boundary = loss_boundary
             best_metrics = current_metrics
+
     ROC_curve(metrics, os.path.join(img_dir, "loss-ROC.png"))
     return best_metrics
 
@@ -565,13 +607,13 @@ def ad_svm(encoder, X_normal_train, X_normal_test, X_anomaly, img_dir, target_si
     print("Encoding train images to latent space...")
     batch_size = 4
     encoded_normal_imgs_train = encoder.predict_generator(
-        train_img_generator(X_normal_train, batch_size, target_size), steps=len(X_normal_train)/batch_size)  # used later for One Class Classification
+        train_img_generator(X_normal_train, batch_size, target_size, preproc=False), steps=len(X_normal_train)/batch_size)  # used later for One Class Classification
     print("Encoding normal test images to latent space...")
     encoded_normal_imgs_test = encoder.predict_generator(
-        train_img_generator(X_normal_test, batch_size, target_size), steps=len(X_normal_test)/batch_size)
+        train_img_generator(X_normal_test, batch_size, target_size, preproc=False), steps=len(X_normal_test)/batch_size)
     print("Encoding anomaly test images to latent space...")
     encoded_anomaly_imgs_test = encoder.predict_generator(
-        train_img_generator(X_anomaly, batch_size, target_size), steps=len(X_anomaly)/batch_size)
+        train_img_generator(X_anomaly, batch_size, target_size, preproc=False), steps=len(X_anomaly)/batch_size)
 
     # reshape to suitable shape for OCC
     encoded_normal_imgs_train = encoded_normal_imgs_train.reshape(
@@ -583,7 +625,7 @@ def ad_svm(encoder, X_normal_train, X_normal_test, X_anomaly, img_dir, target_si
 
     best_metrics = {}
     metrics = []
-    best_m = 0.
+    best_m = -1
     print("'Training' the OC SVM")
     clf = svm.OneClassSVM(gamma="auto")
     clf.fit(encoded_normal_imgs_train)
@@ -606,9 +648,9 @@ def ad_svm(encoder, X_normal_train, X_normal_test, X_anomaly, img_dir, target_si
 
         current_metrics = get_metrics(TP, TN, FP, FN)
         metrics.append(current_metrics)
-        if current_metrics["F2_score"] >= best_m:
+        if current_metrics["MCC"] >= best_m:
             best_metrics = current_metrics
-            best_m = current_metrics["F2_score"]
+            best_m = current_metrics["MCC"]
 
     ROC_curve(metrics, os.path.join(img_dir, "svm-ROC.png"))
 
@@ -623,7 +665,7 @@ def train_and_evaluate(args):
     # define train params
     target_size = (256, 256, 3)
 
-    train_file_names, validation_file_names, normal_test_file_names, anomaly_test_file_names = load_data(
+    train_file_names, validation_file_names, normal_test_file_names, anomaly_train_file_names, anomaly_test_file_names = load_data(
         args.datadir)
 
     # train_generator, validation_generator, test_generator = preproc_data(
@@ -633,7 +675,7 @@ def train_and_evaluate(args):
     # ae, encoder, decoder = load(ckpt_path)
 
     ae, _, _ = train(
-        train_file_names, validation_file_names,  args,  target_size=target_size)
+        train_file_names, validation_file_names, anomaly_train_file_names,  args,  target_size=target_size)
 
     # returns metrics dictionary
     metrics = evaluate(ae, train_file_names,
