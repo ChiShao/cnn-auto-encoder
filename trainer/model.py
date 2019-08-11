@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau, TensorBoard
-from keras.layers import Conv2D, Conv2DTranspose, Input
+from keras.layers import Conv2D, Conv2DTranspose, Input, LeakyReLU
 from keras.models import Model, load_model
 from keras.preprocessing.image import ImageDataGenerator
 from keras.utils.multi_gpu_utils import multi_gpu_model
@@ -202,44 +202,54 @@ def build_conv_ae(filters, input_shape=(256, 256, 3)):
     # layer between input and middle layer
     i = 0
     encode = Conv2D(
-        filters[i], (4, 4), strides=(2, 2), activation="relu", padding="same"
+        filters[i], (4, 4), strides=(2, 2), padding="same"
     )(input_img)
+    encode = LeakyReLU(0.2)(encode)
     i += 1
     encode = Conv2D(
-        filters[i], (4, 4), strides=(2, 2), activation="relu", padding="same"
+        filters[i], (4, 4), strides=(2, 2),  padding="same"
     )(encode)
+    encode = LeakyReLU(0.2)(encode)
+
     i += 1
     encode = Conv2D(
-        filters[i], (3, 3), strides=(1, 1), activation="relu", padding="same"
+        filters[i], (3, 3), strides=(1, 1),  padding="same"
     )(encode)
+    encode = LeakyReLU(0.2)(encode)
     i += 1
     encode = Conv2D(
-        filters[i], (4, 4), strides=(2, 2), activation="relu", padding="same"
+        filters[i], (4, 4), strides=(2, 2),  padding="same"
     )(encode)
+    encode = LeakyReLU(0.2)(encode)
     i += 1
     encode = Conv2D(
-        filters[i], (3, 3), strides=(1, 1), activation="relu", padding="same"
+        filters[i], (3, 3), strides=(1, 1),  padding="same"
     )(encode)
+    encode = LeakyReLU(0.2)(encode)
     i += 1
     encode = Conv2D(
-        filters[i], (4, 4), strides=(2, 2), activation="relu", padding="same"
+        filters[i], (4, 4), strides=(2, 2),  padding="same"
     )(encode)
+    encode = LeakyReLU(0.2)(encode)
     i += 1
     encode = Conv2D(
-        filters[i], (4, 4), strides=(2, 2), activation="relu", padding="same"
+        filters[i], (4, 4), strides=(2, 2),  padding="same"
     )(encode)
+    encode = LeakyReLU(0.2)(encode)
     i += 1
     encode = Conv2D(
-        filters[i], (3, 3), strides=(1, 1), activation="relu", padding="same"
+        filters[i], (3, 3), strides=(1, 1),  padding="same"
     )(encode)
+    encode = LeakyReLU(0.2)(encode)
     i += 1
     encode = Conv2D(
-        filters[i], (4, 4), strides=(2, 2), activation="relu", padding="same"
+        filters[i], (4, 4), strides=(2, 2),  padding="same"
     )(encode)
+    encode = LeakyReLU(0.2)(encode)
     i += 1
     # "encoded" is the encoded representation of the input, middle layer of the aue
     encoded = Conv2D(
-        filters[i], (4, 4), strides=(1, 1), activation="relu", name="encoder"
+        filters[i], (4, 4), strides=(1, 1),  name="encoder"
     )(encode)
 
     i -= 1
@@ -247,40 +257,48 @@ def build_conv_ae(filters, input_shape=(256, 256, 3)):
     decode = Conv2DTranspose(filters[i], (4, 4), strides=(1, 1), activation="relu")(
         encoded
     )
+    decode = LeakyReLU(0.2)(decode)
     i -= 1
     decode = Conv2DTranspose(
-        filters[i], (4, 4), strides=(2, 2), activation="relu", padding="same"
+        filters[i], (4, 4), strides=(2, 2),  padding="same"
     )(decode)
+    decode = LeakyReLU(0.2)(decode)
     i -= 1
     decode = Conv2DTranspose(
-        filters[i], (3, 3), strides=(1, 1), activation="relu", padding="same"
+        filters[i], (3, 3), strides=(1, 1),  padding="same"
     )(decode)
+    decode = LeakyReLU(0.2)(decode)
     i -= 1
     decode = Conv2DTranspose(
-        filters[i], (4, 4), strides=(2, 2), activation="relu", padding="same"
+        filters[i], (4, 4), strides=(2, 2),  padding="same"
     )(decode)
+    decode = LeakyReLU(0.2)(decode)
     i -= 1
     decode = Conv2DTranspose(
-        filters[i], (4, 4), strides=(2, 2), activation="relu", padding="same"
+        filters[i], (4, 4), strides=(2, 2),  padding="same"
     )(decode)
+    decode = LeakyReLU(0.2)(decode)
     i -= 1
     decode = Conv2DTranspose(
-        filters[i], (4, 4), strides=(2, 2), activation="relu", padding="same"
+        filters[i], (4, 4), strides=(2, 2),  padding="same"
     )(decode)
+    decode = LeakyReLU(0.2)(decode)
     i -= 1
     decode = Conv2DTranspose(
-        filters[i], (3, 3), strides=(1, 1), activation="relu", padding="same"
+        filters[i], (3, 3), strides=(1, 1),  padding="same"
     )(decode)
+    i -= 1
+    decode = LeakyReLU(0.2)(decode)
+    decode = Conv2DTranspose(
+        filters[i], (4, 4), strides=(2, 2),  padding="same"
+    )(decode)
+    decode = LeakyReLU(0.2)(decode)
     i -= 1
     decode = Conv2DTranspose(
-        filters[i], (4, 4), strides=(2, 2), activation="relu", padding="same"
+        filters[i], (4, 4), strides=(2, 2),  padding="same"
     )(decode)
+    decode = LeakyReLU(0.2)(decode)
     i -= 1
-    decode = Conv2DTranspose(
-        filters[i], (4, 4), strides=(2, 2), activation="relu", padding="same"
-    )(decode)
-    i -= 1
-
     decoded = Conv2D(
         input_shape[-1], (3, 3), activation="sigmoid", padding="same"
     )(decode)
@@ -336,7 +354,7 @@ def preproc_data(input_shape, batch_size, data_path):
     return train_generator, validation_generator, test_generator
 
 
-def train(train_file_names, validation_file_names, anomaly_train_file_names, args,  target_size=(256, 256, 3)):
+def train_ae(train_file_names, validation_file_names, anomaly_train_file_names, args,  target_size=(256, 256, 3)):
     print("Writing logs to %s" % args.logdir)
     train_generator = train_img_generator(
         train_file_names, args.batch_size, target_size)
@@ -425,22 +443,21 @@ def predict_from_generator(model, gen):
     return predictions
 
 
-def evaluate(model, X_normal_train, X_normal_test, X_anomaly_test, img_dir, target_size):
-    encoder, _ = split_ae(model)
+def evaluate(ae, loss_boundary, svm, score_boundary, X_normal_test, X_anomaly_test, img_dir, target_size):
     # load the data for evaluation purposes
     print("Evaluating feature extractor...")
     # eval_train = model.evaluate_generator(
     #     train_img_generator(X_normal_train, 8), steps=len(X_normal_train))
     batch_size = 8
 
-    eval_test = model.evaluate_generator(
+    eval_test = ae.evaluate_generator(
         train_img_generator(X_normal_test, batch_size, target_size, preproc=False), steps=len(X_normal_test)//batch_size)
     # print("Feature extractor train loss: %f" % eval_train)
 
     print("Feature extractor  test loss: %f" % eval_test)
 
     decoded_samples_normal = predict_from_generator(
-        model, img_generator(X_normal_test, 8, target_size))
+        ae, img_generator(X_normal_test, 8, target_size))
 
     plot_samples(
         img_generator(X_normal_test, 8, target_size),
@@ -450,7 +467,7 @@ def evaluate(model, X_normal_train, X_normal_test, X_anomaly_test, img_dir, targ
     )
 
     decoded_samples_anomaly = predict_from_generator(
-        model, img_generator(X_anomaly_test, batch_size, target_size))
+        ae, img_generator(X_anomaly_test, batch_size, target_size))
 
     plot_samples(
         img_generator(X_anomaly_test, batch_size, target_size),
@@ -462,12 +479,13 @@ def evaluate(model, X_normal_train, X_normal_test, X_anomaly_test, img_dir, targ
     metrics = {}
 
     print("Evaluating the loss based approach")
-    metrics["loss"] = ad_loss(model, X_normal_test,
-                              X_anomaly_test, img_dir, target_size)
+    metrics["loss"] = eval_loss(model=ae, X_normal=X_normal_test,
+                                X_anomaly=X_anomaly_test, loss_boundary=loss_boundary, img_dir=img_dir, target_size=target_size)
     print("Evaluating the OC SVM")
 
-    metrics["svm"] = ad_svm(encoder, X_normal_train,
-                            X_normal_test, X_anomaly_test, img_dir, target_size)
+    encoder, _ = split_ae(ae)
+    metrics["svm"] = eval_svm(encoder, svm, score_boundary,
+                              X_normal_test, X_anomaly_test, img_dir, target_size, batch_size)
     print(metrics)
     return metrics
 
@@ -528,12 +546,12 @@ def ROC_curve(metrics, file_path):
     plt.clf()
 
 
-def ad_loss(model, X_normal, X_anomaly, img_dir, target_size):
-    # anomaly detection based on the loss
-    def loss_per_img(img, rec_img):
-        # mean squared error
-        return np.sum(np.power(rec_img - img, 2)) / (np.prod(img.shape) - 1)
+def loss_per_img(img, rec_img):
+    # mean squared error
+    return np.sum(np.power(rec_img - img, 2)) / (np.prod(img.shape) - 1)
 
+
+def get_losses(model, X_normal, X_anomaly, target_size):
     samples_normal = img_generator(
         X_normal, len(X_normal), target_size
     )
@@ -546,11 +564,18 @@ def ad_loss(model, X_normal, X_anomaly, img_dir, target_size):
     ))
     anomaly_losses = np.array([loss_per_img(i, ri)for i, ri in zip(
         img_generator(X_anomaly, len(X_anomaly), target_size), decoded_samples_anomaly)])
+    return normal_losses, anomaly_losses
 
+
+def eval_loss(model, X_normal, X_anomaly, loss_boundary, img_dir, target_size):
+    """anomaly detection based on the loss"""
+
+    # compute losses on the test set
+    normal_losses, anomaly_losses = get_losses(model,
+                                               X_normal, X_anomaly, target_size)
     bins = 10
     # loss distribution over the normal dataset
     fig = plt.figure()
-
     label = "Distribution of normal loss values"
     plot_hist(normal_losses, relative=True,
               color="g", bins=bins, label=label)
@@ -561,21 +586,92 @@ def ad_loss(model, X_normal, X_anomaly, img_dir, target_size):
               color="r", bins=bins, label=label)
 
     savefig(fig, os.path.join(img_dir, "loss-dist.png"))
-
     plt.clf()
 
+    # generate new samples for evaluation
     samples_normal = np.array(
         list(img_generator(X_normal, len(X_normal), target_size)))
     samples_anomaly = np.array(
         list(img_generator(X_anomaly, len(X_anomaly), target_size)))
 
-    sorted_losses = np.sort(normal_losses)
-    metrics = []
-    best_metrics = {}
-    best_m = -1
+    # ground truth: positives = normality
+    TP = samples_normal[normal_losses < loss_boundary]
+    FN = samples_normal[normal_losses >= loss_boundary]
 
+    # ground truth: negatives = anomaly
+    TN = samples_anomaly[anomaly_losses >= loss_boundary]
+    FP = samples_anomaly[anomaly_losses < loss_boundary]
+
+    # ROC_curve(metrics, os.path.join(img_dir, "loss-ROC.png"))
+    return get_metrics(len(TP), len(TN), len(FP), len(FN))
+
+
+def eval_svm(encoder, svm, score_boundary,  X_normal_test, X_anomaly, img_dir, target_size, batch_size):
+
+    print("Encoding normal test images to latent space...")
+    encoded_normal_imgs_test = encoder.predict_generator(
+        train_img_generator(X_normal_test, batch_size, target_size, preproc=False), steps=len(X_normal_test)/batch_size)
+    print("Encoding anomaly test images to latent space...")
+    encoded_anomaly_imgs_test = encoder.predict_generator(
+        train_img_generator(X_anomaly, batch_size, target_size, preproc=False), steps=len(X_anomaly)/batch_size)
+
+    # reshape to suitable shape for OCC
+    encoded_normal_imgs_test = encoded_normal_imgs_test.reshape(
+        -1, np.prod(encoded_normal_imgs_test.shape[1:]))
+    encoded_anomaly_imgs_test = encoded_anomaly_imgs_test.reshape(
+        - 1, np.prod(encoded_anomaly_imgs_test.shape[1:]))
+
+    score_normal = svm.decision_function(encoded_normal_imgs_test)
+    score_anomaly = svm.decision_function(encoded_anomaly_imgs_test)
+
+    bins = 10
+    # loss distribution over the normal dataset
+    fig = plt.figure()
+    label = "Distribution of the normal svm score values"
+    score_normal = svm.decision_function(encoded_normal_imgs_test)
+    plot_hist(score_normal, relative=True,
+              color="g", bins=bins, label=label)
+
+    label = "Distribution of normal svm score values"
+    # loss distribution over the anomaly dataset
+    plot_hist(score_anomaly, relative=True,
+              color="r", bins=bins, label=label)
+
+    savefig(fig, os.path.join(img_dir, "svm-score-dist.png"))
+    plt.clf()
+
+    print("Score boundary", score_boundary)
+    print(score_normal, "should be greater than the score boundary")
+    print(score_anomaly, "should be smaller than the score boundary")
+    # ground truth: Normality
+    TP = len(score_normal[score_normal > score_boundary])
+    FN = len(score_normal[score_normal <= score_boundary])
+
+    # ground truth: anomaly
+    TN = len(score_anomaly[score_anomaly <= score_boundary])
+    FP = len(score_anomaly[score_anomaly > score_boundary])
+
+    # ROC_curve(metrics, os.path.join(img_dir, "svm-ROC.png"))
+
+    return get_metrics(TP, TN, FP, FN)
+
+
+def train_loss(model, normal_paths, anomaly_paths, target_size):
+    print("Training the loss.")
+    normal_losses, anomaly_losses = get_losses(
+        model, normal_paths, anomaly_paths, target_size)
+    # generate new samples of normals and anomalies to determine the best boundary on the train set
+    samples_normal = np.array(
+        list(img_generator(normal_paths, len(normal_paths), target_size)))
+    samples_anomaly = np.array(
+        list(img_generator(anomaly_paths, len(anomaly_paths), target_size)))
+
+    sorted_losses = np.sort(normal_losses)
+    best_m = -1
+    best_boundary = 0
     step_size = 1.0 / len(normal_losses)
     steps = np.arange(0, 1 + step_size, step_size)
+
     for threshold in steps:
         # loss value for detection of i*100 percent normal data points
         loss_boundary = sorted_losses[int((len(normal_losses)-1) * threshold)]
@@ -591,50 +687,44 @@ def ad_loss(model, X_normal, X_anomaly, img_dir, target_size):
         current_metrics = get_metrics(
             len(TP), len(TN), len(FP), len(FN))
 
-        metrics.append(current_metrics)
-
         # less or equal since we want the biggest TP_rate (i)
         if current_metrics["MCC"] >= best_m:
             best_m = current_metrics["MCC"]
             best_boundary = loss_boundary
-            best_metrics = current_metrics
 
-    ROC_curve(metrics, os.path.join(img_dir, "loss-ROC.png"))
-    return best_metrics
+    return best_boundary
 
 
-def ad_svm(encoder, X_normal_train, X_normal_test, X_anomaly, img_dir, target_size):
+def train_svm(model, train_file_names, anomaly_file_names, target_size, batch_size):
+    print("Training the OC SVM")
     print("Encoding train images to latent space...")
-    batch_size = 4
-    encoded_normal_imgs_train = encoder.predict_generator(
-        train_img_generator(X_normal_train, batch_size, target_size, preproc=False), steps=len(X_normal_train)/batch_size)  # used later for One Class Classification
-    print("Encoding normal test images to latent space...")
-    encoded_normal_imgs_test = encoder.predict_generator(
-        train_img_generator(X_normal_test, batch_size, target_size, preproc=False), steps=len(X_normal_test)/batch_size)
-    print("Encoding anomaly test images to latent space...")
-    encoded_anomaly_imgs_test = encoder.predict_generator(
-        train_img_generator(X_anomaly, batch_size, target_size, preproc=False), steps=len(X_anomaly)/batch_size)
+    # encode normal instances to
+    encoded_normal_imgs_train = model.predict_generator(
+        train_img_generator(train_file_names, batch_size, target_size, preproc=False), steps=len(train_file_names)/batch_size)  # used later for One Class Classification
+    encoded_anomaly_imgs_train = encoded_normal_imgs_train.reshape(
+        - 1, np.prod(encoded_normal_imgs_train.shape[1:]))
 
-    # reshape to suitable shape for OCC
-    encoded_normal_imgs_train = encoded_normal_imgs_train.reshape(
-        -1, np.prod(encoded_normal_imgs_train.shape[1:]))
-    encoded_normal_imgs_test = encoded_normal_imgs_test.reshape(
-        -1, np.prod(encoded_normal_imgs_test.shape[1:]))
-    encoded_anomaly_imgs_test = encoded_anomaly_imgs_test.reshape(
-        - 1, np.prod(encoded_anomaly_imgs_test.shape[1:]))
+    # encode anomalies to latent space
+    encoded_anomaly_imgs_train = model.predict_generator(
+        train_img_generator(anomaly_file_names, batch_size, target_size, preproc=False), steps=len(train_file_names)/batch_size)  # used later for One Class Classification
+    encoded_anomaly_imgs_train = encoded_anomaly_imgs_train.reshape(
+        - 1, np.prod(encoded_anomaly_imgs_train.shape[1:]))
 
-    best_metrics = {}
-    metrics = []
-    best_m = -1
-    print("'Training' the OC SVM")
+    print("Fitting the OC SVM")
     clf = svm.OneClassSVM(gamma="auto")
     clf.fit(encoded_normal_imgs_train)
 
-    score_normal = -clf.decision_function(encoded_normal_imgs_test)
-    score_anomaly = -clf.decision_function(encoded_anomaly_imgs_test)
+    metrics = []
+    best_m = -1
+
+    # computes signed distance to the hyperplane
+
+    score_normal = clf.decision_function(encoded_normal_imgs_train)
+    score_anomaly = clf.decision_function(encoded_anomaly_imgs_train)
 
     sorted_scores = np.sort(score_normal)
-    step_size = 1/len(encoded_anomaly_imgs_test)
+    step_size = 1 / len(encoded_anomaly_imgs_train)
+    best_boundary = 0
     for i in np.arange(0.1, 1 + step_size, step_size):
 
         score_boundary = sorted_scores[int((len(score_normal)-1)*i)]
@@ -649,12 +739,10 @@ def ad_svm(encoder, X_normal_train, X_normal_test, X_anomaly, img_dir, target_si
         current_metrics = get_metrics(TP, TN, FP, FN)
         metrics.append(current_metrics)
         if current_metrics["MCC"] >= best_m:
-            best_metrics = current_metrics
             best_m = current_metrics["MCC"]
+            best_boundary = score_boundary
 
-    ROC_curve(metrics, os.path.join(img_dir, "svm-ROC.png"))
-
-    return best_metrics
+    return svm, best_boundary
 
 
 def train_and_evaluate(args):
@@ -674,12 +762,18 @@ def train_and_evaluate(args):
     # ckpt_path = os.path.join("ckpts","AD_cable_20190808_161615" ,"ep0017-loss0.000004-val_loss0.000003.h5")
     # ae, encoder, decoder = load(ckpt_path)
 
-    ae, _, _ = train(
+    ae, _, _ = train_ae(
         train_file_names, validation_file_names, anomaly_train_file_names,  args,  target_size=target_size)
+    loss_boundary = train_loss(
+        ae, train_file_names, anomaly_train_file_names, target_size)
+
+    encoder = split_ae(ae)[0]
+    svm,score_boundary = train_svm(encoder, train_file_names,
+                    anomaly_train_file_names, target_size, batch_size=args.batch_size)
 
     # returns metrics dictionary
-    metrics = evaluate(ae, train_file_names,
-                       normal_test_file_names, anomaly_test_file_names, args.imgdir, target_size)
+    metrics = evaluate(ae, loss_boundary, svm, score_boundary, normal_test_file_names,
+                       anomaly_test_file_names, args.imgdir, target_size)
 
     with file_io.FileIO(os.path.join(args.evaldir, "metrics.json"), "w") as f:
         json.dump(metrics, f)
