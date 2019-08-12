@@ -443,7 +443,7 @@ def predict_from_generator(model, gen):
     return predictions
 
 
-def evaluate(ae, loss_boundary, svm, score_boundary, X_normal_test, X_anomaly_test, img_dir, target_size):
+def evaluate(ae, loss_boundary, oc_svm, score_boundary, X_normal_test, X_anomaly_test, img_dir, target_size):
     # load the data for evaluation purposes
     print("Evaluating feature extractor...")
     # eval_train = model.evaluate_generator(
@@ -484,7 +484,7 @@ def evaluate(ae, loss_boundary, svm, score_boundary, X_normal_test, X_anomaly_te
     print("Evaluating the OC SVM")
 
     encoder, _ = split_ae(ae)
-    metrics["svm"] = eval_svm(encoder, svm, score_boundary,
+    metrics["svm"] = eval_svm(encoder, oc_svm, score_boundary,
                               X_normal_test, X_anomaly_test, img_dir, target_size, batch_size)
     print(metrics)
     return metrics
@@ -606,11 +606,11 @@ def eval_loss(model, X_normal, X_anomaly, loss_boundary, img_dir, target_size):
     return get_metrics(len(TP), len(TN), len(FP), len(FN))
 
 
-def eval_svm(encoder, svm, score_boundary,  X_normal_test, X_anomaly, img_dir, target_size, batch_size):
+def eval_svm(encoder, oc_svm, score_boundary,  X_normal, X_anomaly, img_dir, target_size, batch_size):
 
     print("Encoding normal test images to latent space...")
     encoded_normal_imgs_test = encoder.predict_generator(
-        train_img_generator(X_normal_test, batch_size, target_size, preproc=False), steps=len(X_normal_test)/batch_size)
+        train_img_generator(X_normal, batch_size, target_size, preproc=False), steps=len(X_normal)/batch_size)
     print("Encoding anomaly test images to latent space...")
     encoded_anomaly_imgs_test = encoder.predict_generator(
         train_img_generator(X_anomaly, batch_size, target_size, preproc=False), steps=len(X_anomaly)/batch_size)
@@ -621,14 +621,14 @@ def eval_svm(encoder, svm, score_boundary,  X_normal_test, X_anomaly, img_dir, t
     encoded_anomaly_imgs_test = encoded_anomaly_imgs_test.reshape(
         - 1, np.prod(encoded_anomaly_imgs_test.shape[1:]))
 
-    score_normal = svm.decision_function(encoded_normal_imgs_test)
-    score_anomaly = svm.decision_function(encoded_anomaly_imgs_test)
+    score_normal = oc_svm.decision_function(encoded_normal_imgs_test)
+    score_anomaly = oc_svm.decision_function(encoded_anomaly_imgs_test)
 
     bins = 10
     # loss distribution over the normal dataset
     fig = plt.figure()
     label = "Distribution of the normal svm score values"
-    score_normal = svm.decision_function(encoded_normal_imgs_test)
+    score_normal = oc_svm.decision_function(encoded_normal_imgs_test)
     plot_hist(score_normal, relative=True,
               color="g", bins=bins, label=label)
 
@@ -695,18 +695,18 @@ def train_loss(model, normal_paths, anomaly_paths, target_size):
     return best_boundary
 
 
-def train_svm(model, train_file_names, anomaly_file_names, target_size, batch_size):
+def train_svm(model, normal_file_names, anomaly_file_names, target_size, batch_size):
     print("Training the OC SVM")
     print("Encoding train images to latent space...")
-    # encode normal instances to
+    # encode normal instances to latent space
     encoded_normal_imgs_train = model.predict_generator(
-        train_img_generator(train_file_names, batch_size, target_size, preproc=False), steps=len(train_file_names)/batch_size)  # used later for One Class Classification
-    encoded_anomaly_imgs_train = encoded_normal_imgs_train.reshape(
+        train_img_generator(normal_file_names, batch_size, target_size, preproc=False), steps=len(normal_file_names)/batch_size)  # used later for One Class Classification
+    encoded_normal_imgs_train = encoded_normal_imgs_train.reshape(
         - 1, np.prod(encoded_normal_imgs_train.shape[1:]))
 
     # encode anomalies to latent space
     encoded_anomaly_imgs_train = model.predict_generator(
-        train_img_generator(anomaly_file_names, batch_size, target_size, preproc=False), steps=len(train_file_names)/batch_size)  # used later for One Class Classification
+        train_img_generator(anomaly_file_names, batch_size, target_size, preproc=False), steps=len(anomaly_file_names)/batch_size)  # used later for One Class Classification
     encoded_anomaly_imgs_train = encoded_anomaly_imgs_train.reshape(
         - 1, np.prod(encoded_anomaly_imgs_train.shape[1:]))
 
@@ -742,7 +742,7 @@ def train_svm(model, train_file_names, anomaly_file_names, target_size, batch_si
             best_m = current_metrics["MCC"]
             best_boundary = score_boundary
 
-    return svm, best_boundary
+    return clf, best_boundary
 
 
 def train_and_evaluate(args):
@@ -768,11 +768,11 @@ def train_and_evaluate(args):
         ae, train_file_names, anomaly_train_file_names, target_size)
 
     encoder = split_ae(ae)[0]
-    svm,score_boundary = train_svm(encoder, train_file_names,
+    oc_svm,score_boundary = train_svm(encoder, train_file_names,
                     anomaly_train_file_names, target_size, batch_size=args.batch_size)
 
     # returns metrics dictionary
-    metrics = evaluate(ae, loss_boundary, svm, score_boundary, normal_test_file_names,
+    metrics = evaluate(ae, loss_boundary, oc_svm, score_boundary, normal_test_file_names,
                        anomaly_test_file_names, args.imgdir, target_size)
 
     with file_io.FileIO(os.path.join(args.evaldir, "metrics.json"), "w") as f:
