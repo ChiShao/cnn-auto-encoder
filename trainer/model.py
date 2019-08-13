@@ -2,6 +2,7 @@ import io
 import json
 import os
 import random
+import subprocess
 from contextlib import redirect_stdout
 
 import cv2
@@ -20,10 +21,11 @@ from PIL import Image, ImageEnhance
 from sklearn import svm
 from tensorflow.python.lib.io import file_io
 
+import trainer.parse_file_list
 from trainer.gpu_utils import ModelCkptMultiGPU, get_available_gpus
 from trainer.model_ckpt_gc import ModelCheckpointGC
 from trainer.plot_utils import plot_hist, plot_mvtec, plot_samples, savefig
-import subprocess
+
 # from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, TensorBoard
 # from tensorflow.keras.layers import Conv2D, Conv2DTranspose, Input
 # from tensorflow.keras.models import Model, load_model
@@ -298,7 +300,7 @@ def build_conv_ae(filters, input_shape=(256, 256, 3)):
         filters[i], (4, 4), strides=(2, 2),  padding="same"
     )(decode)
     decode = LeakyReLU(0.2)(decode)
-    i -= 1
+    
     decoded = Conv2D(
         input_shape[-1], (3, 3), activation="sigmoid", padding="same"
     )(decode)
@@ -308,8 +310,10 @@ def build_conv_ae(filters, input_shape=(256, 256, 3)):
     n_gpus = len(get_available_gpus())
     if n_gpus > 1:
         autoencoder = multi_gpu_model(autoencoder_single, n_gpus)
+        print("Autoencoder is trained on %d GPUs" % n_gpus)
     else:
-        autoencoder = Model(inputs=input_img, outputs=decoded)
+        autoencoder = autoencoder_single
+        print("Autoencoder is trained on a single GPU")
 
     encoder, decoder = split_ae(autoencoder_single)
 
@@ -366,7 +370,7 @@ def train_ae(train_file_names, validation_file_names, anomaly_train_file_names, 
     batch_size = args.batch_size
     filters = args.filters + [d]  # [16, 16, 16, 32, 64, 64, 32, 32, d]
 
-    ae, _, encoder, decoder = build_conv_ae(
+    ae, ae_single, encoder, decoder = build_conv_ae(
         input_shape=target_size, filters=filters)
 
     # define callbacks for logging and optimized training and ckpt saving
@@ -379,7 +383,7 @@ def train_ae(train_file_names, validation_file_names, anomaly_train_file_names, 
         args.ckptdir, 'ep{epoch:04d}-loss{loss:.6f}-val_loss{val_loss:.6f}.h5')
 
     mcp_save = ModelCheckpointGC(
-        checkpoint_format, save_best_only=True, verbose=1, monitor="val_loss", mode="min"
+        checkpoint_format, ae_single, save_best_only=True, verbose=1, monitor="val_loss", mode="min"
     )
     reduce_lr_loss = ReduceLROnPlateau(
         monitor="val_loss", factor=0.2, patience=7, verbose=1, mode="min"
@@ -595,12 +599,12 @@ def eval_loss(model, X_normal, X_anomaly, loss_boundary, img_dir, target_size):
         list(img_generator(X_anomaly, len(X_anomaly), target_size)))
 
     # ground truth: positives = normality
-    TP = samples_normal[normal_losses < loss_boundary]
-    FN = samples_normal[normal_losses >= loss_boundary]
+    TN = samples_normal[normal_losses < loss_boundary]
+    FP = samples_normal[normal_losses >= loss_boundary]
 
     # ground truth: negatives = anomaly
-    TN = samples_anomaly[anomaly_losses >= loss_boundary]
-    FP = samples_anomaly[anomaly_losses < loss_boundary]
+    TP = samples_anomaly[anomaly_losses >= loss_boundary]
+    FN = samples_anomaly[anomaly_losses < loss_boundary]
 
     # ROC_curve(metrics, os.path.join(img_dir, "loss-ROC.png"))
     return get_metrics(len(TP), len(TN), len(FP), len(FN))
@@ -643,16 +647,17 @@ def eval_svm(encoder, oc_svm, score_boundary,  X_normal, X_anomaly, img_dir, tar
     print("Score boundary", score_boundary)
     print(score_normal, "should be greater than the score boundary")
     print(score_anomaly, "should be smaller than the score boundary")
+    # Normalities are negatives (no finding)
     # ground truth: Normality
-    TP = len(score_normal[score_normal > score_boundary])
-    FN = len(score_normal[score_normal <= score_boundary])
+    TN = len(score_normal[score_normal > score_boundary])
+    FP = len(score_normal[score_normal <= score_boundary])
 
+    # Anomalies are positives (finding)
     # ground truth: anomaly
-    TN = len(score_anomaly[score_anomaly <= score_boundary])
-    FP = len(score_anomaly[score_anomaly > score_boundary])
+    TP = len(score_anomaly[score_anomaly <= score_boundary])
+    FN = len(score_anomaly[score_anomaly > score_boundary])
 
     # ROC_curve(metrics, os.path.join(img_dir, "svm-ROC.png"))
-
     return get_metrics(TP, TN, FP, FN)
 
 
@@ -752,9 +757,10 @@ def train_and_evaluate(args):
 
     # define train params
     target_size = (256, 256, 3)
+    print(os.path.join(args.datadir, "no_damage.txt"))
 
-    train_file_names, validation_file_names, normal_test_file_names, anomaly_train_file_names, anomaly_test_file_names = load_data(
-        args.datadir)
+    train_file_names, validation_file_names, normal_test_file_names, anomaly_train_file_names, anomaly_test_file_names = trainer.parse_file_list.load_data(os.path.join(args.datadir, "no_damage.txt"),
+                                                                                                                                                           os.path.join(args.datadir, "damage_encoded.txt"))
 
     # train_generator, validation_generator, test_generator = preproc_data(
     #     input_shape, batch_size, args.datadir)
@@ -768,8 +774,8 @@ def train_and_evaluate(args):
         ae, train_file_names, anomaly_train_file_names, target_size)
 
     encoder = split_ae(ae)[0]
-    oc_svm,score_boundary = train_svm(encoder, train_file_names,
-                    anomaly_train_file_names, target_size, batch_size=args.batch_size)
+    oc_svm, score_boundary = train_svm(encoder, train_file_names,
+                                       anomaly_train_file_names, target_size, batch_size=args.batch_size)
 
     # returns metrics dictionary
     metrics = evaluate(ae, loss_boundary, oc_svm, score_boundary, normal_test_file_names,

@@ -38,24 +38,26 @@ def plot_samples(row_one, row_two, f_plot, outfile=""):
             f_plot(nxt)  # row_two
         except IndexError:
             pass
-    
+
     if outfile != "":
         savefig(fig, outfile)
     plt.clf()
 
 
-def plot_hist(values, bins=50, relative=False, color="r"):
+def plot_hist(values, label, bins=50, relative=False, color="r"):
     t = np.linspace(values.min(), values.max(), bins)
     denominator = len(values) if relative else 1
     hist = np.histogram(values, bins)
-    plt.plot(t, hist[0] / denominator, color)
+    plt.plot(t, hist[0] / denominator, color, label=label)
+    plt.legend()
 
 
 def savefig(fig, file_path):
     fig.canvas.draw()
     # read data from figure into numpy array
-
     data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep="")
     data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    
+    # open file handle to destination file
     with file_io.FileIO(file_path, mode="wb") as f:
         plt.imsave(f, data)

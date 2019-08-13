@@ -49,7 +49,7 @@ parser.add_argument(
 parser.add_argument(
     '--filters', nargs="+", type=int,
     help='number of filters for each of the nine layers *without* the latent space dimension',
-    default=[16, 16, 16, 32, 64, 64, 32, 32]
+    default=[16, 16, 16, 32, 64, 64, 32, 32,32]
 )
 
 parser.add_argument(
@@ -65,6 +65,5 @@ file_io.create_dir(args.evaldir)
 file_io.create_dir(args.imgdir)
 file_io.create_dir(args.ckptdir)
 file_io.create_dir(args.logdir)
-
 
 train_and_evaluate(args)
