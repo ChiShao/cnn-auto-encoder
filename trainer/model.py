@@ -95,7 +95,7 @@ def train_img_generator(file_paths, batch_size, target_size, preproc=True, input
             # print(fp)
             if file_io.file_exists(fp):
                 img = filepath_to_image(fp)
-                img = img.resize(target_size[:-1], Image.BICUBIC)  # BGR -> RGB
+                img = cv2.resize(img, target_size[:-1])
                 if preproc:
                     np_img = preproc_img(img, flip_top_bottom=False, hsv=None)
                 else:
@@ -111,7 +111,9 @@ def train_img_generator(file_paths, batch_size, target_size, preproc=True, input
 
 def filepath_to_image(fp):
     with file_io.FileIO(fp, mode="rb") as f:
-        img = Image.open(f)
+        # img = Image.open(f)
+        img = cv2.imdecode(np.asarray(bytearray(f.read())), 1)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # convert2rgb
     return img
 
 
@@ -120,25 +122,34 @@ def rand(a=0, b=1):
     return np.random.rand()*(b-a) + a
 
 
-def preproc_img(image, flip_top_bottom=True, flip_left_right=True, brightness=True, contrast=True, hsv=(.1, 1.5, 1.5)):
+def preproc_img(image, flip_top_bottom=True, flip_left_right=True, hsv=(.1, 1.5, 1.5)):
     """https://github.com/qqwweee/keras-yolo3/blob/master/yolo3/utils.py"""
     # flip image or not
     if flip_left_right and rand() < .5:
-        image = image.transpose(Image.FLIP_LEFT_RIGHT)
+        # image = image.transpose(Image.FLIP_LEFT_RIGHT)
+        image = cv2.flip(image, flipCode=0)
     if flip_top_bottom and rand() < .5:
-        image = image.transpose(Image.FLIP_TOP_BOTTOM)
+        # image = image.transpose(Image.FLIP_TOP_BOTTOM)
+        image = cv2.flip(image, flipCode=1)
 
     # image brighDtness enhancer
-    if brightness:
-        brightness = ImageEnhance.Brightness(image)
-        image = brightness.enhance(rand(.5, 1.5))
+    # if brightness:
+        # brightness = ImageEnhance.Brightness(image)
 
-    # increase or decrease contrast
-    if contrast:
-        contrast = ImageEnhance.Contrast(image)
-        image = contrast.enhance(rand(.5, 1.5))
+        # image = brightness.enhance(rand(.5, 1.5))
+        # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    # brightness and contrast
+    
+    image = np.array(image)
+    image = np.clip((rand(.5, 1.5) * image + rand(-50, 100)), 0, 255)
+    image = image.astype(np.uint8)
 
-    image = np.array(image) / 255.
+    # # increase or decrease contrast
+    # if contrast:
+    #     contrast = ImageEnhance.Contrast(image)
+    #     image = contrast.enhance(rand(.5, 1.5))
+
+    image = image / 255.
 
     if hsv != None:
         hue, sat, val = hsv
@@ -169,7 +180,9 @@ def img_generator(file_paths, n, target_size):
         fp = file_paths[i]
         if file_io.file_exists(fp):
             img = filepath_to_image(fp)
-            img = img.resize(target_size[:-1], Image.BICUBIC)
+            # img = img.resize(target_size[:-1], Image.BICUBIC)
+            img = cv2.resize(img, target_size[:-1])
+
             yield np.array(img) / 255
 
 
@@ -177,7 +190,7 @@ def split_ae(autoencoder):
     encoder_layer = autoencoder.get_layer("encoder")
     # this model maps an input to its encoded representation; Big image to small rep
     encoder = Model(
-        inputs=autoencoder.input, outputs=encoder_layer.output)
+        inputs=autoencoder.get_input_at(0), outputs=encoder_layer.output)
 
     # create a placeholder for an encoded (ENCODING_DIM-dimensional) input
     encoded_input = Input(shape=encoder_layer.output_shape[1:])
@@ -300,7 +313,7 @@ def build_conv_ae(filters, input_shape=(256, 256, 3)):
         filters[i], (4, 4), strides=(2, 2),  padding="same"
     )(decode)
     decode = LeakyReLU(0.2)(decode)
-    
+
     decoded = Conv2D(
         input_shape[-1], (3, 3), activation="sigmoid", padding="same"
     )(decode)
@@ -315,6 +328,7 @@ def build_conv_ae(filters, input_shape=(256, 256, 3)):
         autoencoder = autoencoder_single
         print("Autoencoder is trained on a single GPU")
 
+    
     encoder, decoder = split_ae(autoencoder_single)
 
     # build (aka "compile") the model
@@ -376,7 +390,7 @@ def train_ae(train_file_names, validation_file_names, anomaly_train_file_names, 
     # define callbacks for logging and optimized training and ckpt saving
 
     earlyStopping = EarlyStopping(
-        monitor="val_loss", patience=20, verbose=1, mode="min", min_delta=(1/10**5)
+        monitor="val_loss", patience=10, verbose=1, mode="min", min_delta=(1/10**5)
     )
     # saves model which was trained on a single cpu since saving the other model threw some kind of error
     checkpoint_format = os.path.join(
@@ -386,7 +400,7 @@ def train_ae(train_file_names, validation_file_names, anomaly_train_file_names, 
         checkpoint_format, ae_single, save_best_only=True, verbose=1, monitor="val_loss", mode="min"
     )
     reduce_lr_loss = ReduceLROnPlateau(
-        monitor="val_loss", factor=0.2, patience=7, verbose=1, mode="min"
+        monitor="val_loss", factor=0.2, patience=5, verbose=1, mode="min"
     )
 
     tb = TensorBoard(
@@ -395,7 +409,7 @@ def train_ae(train_file_names, validation_file_names, anomaly_train_file_names, 
 
     f = io.StringIO()
     with redirect_stdout(f):
-        ae.summary()
+        ae_single.summary()
     summary = f.getvalue()
     print(summary)
 
