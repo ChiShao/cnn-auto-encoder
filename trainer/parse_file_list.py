@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 import numpy as np
 import base64
 
+DATA_SET_FRAC = 100
 
 def load_data(data_path_normal, data_path_anomaly):
     def split_bucket_parts(path):
@@ -39,6 +40,7 @@ def load_data(data_path_normal, data_path_anomaly):
 
     with GFile(data_path_normal, "r") as f:
         lines = f.readlines()
+        lines = lines[:len(lines)//DATA_SET_FRAC]
         lines = [l[:-1] for l in lines]  # remove trailing \n char
     bucket = split_bucket_parts(lines[0])[0]
     pipes = get_pipes(lines)
@@ -56,6 +58,7 @@ def load_data(data_path_normal, data_path_anomaly):
     # get anomaly data
     with GFile(data_path_anomaly, "r") as f:
         lines = f.readlines()
+        lines = lines[:len(lines)//DATA_SET_FRAC]
         file_paths = [split_bucket_parts(l[:-1])[1][-1] for l in lines]
 
     decoded_lines = []

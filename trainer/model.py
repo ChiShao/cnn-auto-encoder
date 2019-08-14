@@ -15,14 +15,13 @@ from keras.models import Model, load_model
 from keras.preprocessing.image import ImageDataGenerator
 from keras.utils.multi_gpu_utils import multi_gpu_model
 from matplotlib.colors import hsv_to_rgb, rgb_to_hsv
-from PIL import Image, ImageEnhance
 # from tensorflow.keras.preprocessing.image import ImageDataGenerator
 # from tensorflow.keras.utils.multi_gpu_utils import multi_gpu_model
 from sklearn import svm
 from tensorflow.python.lib.io import file_io
 
 import trainer.parse_file_list
-from trainer.gpu_utils import ModelCkptMultiGPU, get_available_gpus
+from trainer.gpu_utils import get_available_gpus
 from trainer.model_ckpt_gc import ModelCheckpointGC
 from trainer.plot_utils import plot_hist, plot_mvtec, plot_samples, savefig
 
@@ -139,7 +138,7 @@ def preproc_img(image, flip_top_bottom=True, flip_left_right=True, hsv=(.1, 1.5,
         # image = brightness.enhance(rand(.5, 1.5))
         # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     # brightness and contrast
-    
+
     image = np.array(image)
     image = np.clip((rand(.5, 1.5) * image + rand(-50, 100)), 0, 255)
     image = image.astype(np.uint8)
@@ -328,7 +327,6 @@ def build_conv_ae(filters, input_shape=(256, 256, 3)):
         autoencoder = autoencoder_single
         print("Autoencoder is trained on a single GPU")
 
-    
     encoder, decoder = split_ae(autoencoder_single)
 
     # build (aka "compile") the model
@@ -432,7 +430,7 @@ def train_ae(train_file_names, validation_file_names, anomaly_train_file_names, 
         callbacks=[mcp_save, earlyStopping, reduce_lr_loss, tb]
     )
 
-    return ae, encoder, decoder
+    return ae, ae_single, encoder, decoder
 
 
 def load(ckpt_path):
@@ -570,12 +568,15 @@ def loss_per_img(img, rec_img):
 
 
 def get_losses(model, X_normal, X_anomaly, target_size):
+    print("Computing losses for normal samples.")
+
     samples_normal = img_generator(
         X_normal, len(X_normal), target_size
     )
     decoded_samples_normal = predict_from_generator(model, samples_normal)
     normal_losses = np.array([loss_per_img(i, ri)for i, ri in zip(
         img_generator(X_normal, len(X_normal), target_size), decoded_samples_normal)])
+    print("Computing losses for anomalous samples.")
 
     decoded_samples_anomaly = predict_from_generator(model, img_generator(
         X_anomaly, len(X_anomaly), target_size
@@ -690,6 +691,7 @@ def train_loss(model, normal_paths, anomaly_paths, target_size):
     best_boundary = 0
     step_size = 1.0 / len(normal_losses)
     steps = np.arange(0, 1 + step_size, step_size)
+    print("Determining best loss boundary for train set.")
 
     for threshold in steps:
         # loss value for detection of i*100 percent normal data points
@@ -773,8 +775,8 @@ def train_and_evaluate(args):
     target_size = (256, 256, 3)
     print(os.path.join(args.datadir, "no_damage.txt"))
 
-    train_file_names, validation_file_names, normal_test_file_names, anomaly_train_file_names, anomaly_test_file_names = trainer.parse_file_list.load_data(os.path.join(args.datadir, "no_damage.txt"),
-                                                                                                                                                           os.path.join(args.datadir, "damage_encoded.txt"))
+    train_file_names, validation_file_names, normal_test_file_names, anomaly_train_file_names, anomaly_test_file_names = trainer.parse_file_list.load_data(
+        os.path.join(args.datadir, "no_damage.txt"), os.path.join(args.datadir, "damage_encoded.txt"))
 
     # train_generator, validation_generator, test_generator = preproc_data(
     #     input_shape, batch_size, args.datadir)
@@ -782,8 +784,9 @@ def train_and_evaluate(args):
     # ckpt_path = os.path.join("ckpts","AD_cable_20190808_161615" ,"ep0017-loss0.000004-val_loss0.000003.h5")
     # ae, encoder, decoder = load(ckpt_path)
 
-    ae, _, _ = train_ae(
-        train_file_names, validation_file_names, anomaly_train_file_names,  args,  target_size=target_size)
+    ae_multi, ae, _, _ = train_ae(
+        train_file_names, validation_file_names, anomaly_train_file_names, args, target_size=target_size)
+        
     loss_boundary = train_loss(
         ae, train_file_names, anomaly_train_file_names, target_size)
 
